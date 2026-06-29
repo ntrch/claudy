@@ -63,7 +63,7 @@ void setup() {
     }
 
     // Allocate animation manager
-    anim = new AnimationManager(display.getDisplay());
+    anim = new AnimationManager(display);
 
     // Attempt WiFi with saved credentials (non-blocking start)
     Serial.println("[Main] Attempting WiFi with saved credentials...");
@@ -71,11 +71,10 @@ void setup() {
     WiFi.begin(); // use saved credentials from NVS
 
     // Show connecting message while WiFi tries
-    display.getDisplay().clearDisplay();
-    display.getDisplay().setTextSize(1);
-    display.getDisplay().setCursor(0, 10);
-    display.getDisplay().print("Connecting to WiFi...");
-    display.getDisplay().display();
+    display.getU8g2().clearBuffer();
+    display.getU8g2().setFont(u8g2_font_6x10_tr);
+    display.getU8g2().drawStr(0, 18, "Connecting to WiFi...");
+    display.getU8g2().sendBuffer();
 
     // Wait up to 10 seconds for quick connect
     uint32_t wifiStart = millis();
@@ -89,17 +88,13 @@ void setup() {
     if (!quickConnect) {
         Serial.println("[Main] No saved WiFi — starting WiFiManager portal...");
 
-        display.getDisplay().clearDisplay();
-        display.getDisplay().setTextSize(1);
-        display.getDisplay().setCursor(0, 10);
-        display.getDisplay().print("Connect to WiFi AP:");
-        display.getDisplay().setCursor(0, 24);
-        display.getDisplay().print("  Claudy-Setup");
-        display.getDisplay().setCursor(0, 38);
-        display.getDisplay().print("Then visit:");
-        display.getDisplay().setCursor(0, 50);
-        display.getDisplay().print("  192.168.4.1");
-        display.getDisplay().display();
+        display.getU8g2().clearBuffer();
+        display.getU8g2().setFont(u8g2_font_6x10_tr);
+        display.getU8g2().drawStr(0, 18, "Connect to WiFi AP:");
+        display.getU8g2().drawStr(0, 30, "  Claudy-Setup");
+        display.getU8g2().drawStr(0, 46, "Then visit:");
+        display.getU8g2().drawStr(0, 58, "  192.168.4.1");
+        display.getU8g2().sendBuffer();
 
         bool ok = wifiMgr.begin([](const String& msg) {
             Serial.print("[WiFi] Status: ");
@@ -321,16 +316,14 @@ void checkDeepSleep() {
 // enterDeepSleep() — deep sleep, wake on GPIO0 (BOOT button)
 // ============================================================
 void enterDeepSleep() {
-    display.getDisplay().clearDisplay();
-    display.getDisplay().setTextSize(1);
-    display.getDisplay().setCursor(10, 20);
-    display.getDisplay().print("Sleeping...");
-    display.getDisplay().setCursor(0, 34);
-    display.getDisplay().print("Press BOOT to wake");
-    display.getDisplay().display();
+    display.getU8g2().clearBuffer();
+    display.getU8g2().setFont(u8g2_font_6x10_tr);
+    display.getU8g2().drawStr(10, 28, "Sleeping...");
+    display.getU8g2().drawStr(0, 42, "Press BOOT to wake");
+    display.getU8g2().sendBuffer();
     delay(1500);
 
-    display.getDisplay().oled_command(SH110X_DISPLAYOFF);
+    display.sleepDisplay();
 
     esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_BUTTON_PIN, 0);
 

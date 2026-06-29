@@ -6,8 +6,7 @@
 // ============================================================
 
 #include <Arduino.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SH110X.h>
+#include <U8g2lib.h>
 #include "config.h"
 
 // --------------- Usage Data Structure ---------------
@@ -85,21 +84,31 @@ public:
     void setDimmed(bool dimmed);
     bool isDimmed() const { return _dimmed; }
 
-    // Raw access for animations
-    Adafruit_SH1106G& getDisplay() { return _display; }
+    // For animations: draw a full 128x64 bitmap frame and send to display
+    void drawFrame(const uint8_t* frameBitmap);
+    void sendBuffer();
+
+    // Sleep/wake
+    void sleepDisplay();
+    void wakeDisplay();
+    bool isSleeping() const { return _sleeping; }
+
+    // Raw U8g2 access (for direct use if needed)
+    U8G2_SH1106_128X64_NONAME_F_HW_I2C& getU8g2() { return _u8g2; }
 
 private:
-    Adafruit_SH1106G _display;
-    UsageData        _data;
-    uint8_t          _currentScreen;
-    bool             _wifiConnected;
-    int              _wifiRssi;
-    bool             _dimmed;
-    bool             _hasError;
-    String           _errorMsg;
+    U8G2_SH1106_128X64_NONAME_F_HW_I2C _u8g2;
+    UsageData   _data;
+    uint8_t     _currentScreen;
+    bool        _wifiConnected;
+    int         _wifiRssi;
+    bool        _dimmed;
+    bool        _sleeping;
+    bool        _hasError;
+    String      _errorMsg;
 
     // Typing animation state (for status screen)
-    TypingState      _typing;
+    TypingState _typing;
 
     // Helpers
     void drawProgressBar(int x, int y, int w, int h, float pct);

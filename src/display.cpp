@@ -20,11 +20,12 @@ static const uint8_t kTypingMessageCount = 7;
 
 // --------------- Constructor ---------------
 DisplayManager::DisplayManager()
-    : _display(OLED_SCREEN_WIDTH, OLED_SCREEN_HEIGHT, &Wire, OLED_RESET_PIN)
+    : _u8g2(U8G2_R0, U8X8_PIN_NONE, OLED_SCL_PIN, OLED_SDA_PIN)
     , _currentScreen(SCREEN_STATUS)
     , _wifiConnected(false)
     , _wifiRssi(0)
     , _dimmed(false)
+    , _sleeping(false)
     , _hasError(false)
 {
     _data.valid          = false;
@@ -41,27 +42,19 @@ DisplayManager::DisplayManager()
 
 // --------------- Lifecycle ---------------
 bool DisplayManager::begin() {
-    Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
-
-    if (!_display.begin(OLED_I2C_ADDRESS, true)) {
-        Serial.println("[Display] SH1106 init FAILED");
-        return false;
-    }
-
-    _display.clearDisplay();
-    _display.setTextColor(SH110X_WHITE);
-    _display.setTextSize(1);
-    _display.display();
-    Serial.println("[Display] SH1106 init OK");
+    _u8g2.begin();
+    _u8g2.clearBuffer();
+    _u8g2.sendBuffer();
+    Serial.println("[Display] SH1106 U8g2 init OK");
     return true;
 }
 
 void DisplayManager::clear() {
-    _display.clearDisplay();
+    _u8g2.clearBuffer();
 }
 
 void DisplayManager::show() {
-    _display.display();
+    _u8g2.sendBuffer();
 }
 
 // --------------- Screen control ---------------
@@ -99,13 +92,24 @@ void DisplayManager::clearError() {
 // --------------- Dimming ---------------
 void DisplayManager::setDimmed(bool dimmed) {
     _dimmed = dimmed;
-    _display.oled_command(dimmed ? 0x81 : 0xCF);
-    _display.oled_command(dimmed ? 0x10 : 0xFF);
+    _u8g2.setContrast(dimmed ? 16 : 255);
+}
+
+// --------------- Sleep/Wake ---------------
+void DisplayManager::sleepDisplay() {
+    _sleeping = true;
+    _u8g2.setPowerSave(1);
+}
+
+void DisplayManager::wakeDisplay() {
+    _sleeping = false;
+    _u8g2.setPowerSave(0);
 }
 
 // --------------- Main render dispatcher ---------------
 void DisplayManager::render() {
-    _display.clearDisplay();
+    _u8g2.clearBuffer();
+    _u8g2.setFont(u8g2_font_6x10_tr);
 
     if (_hasError) {
         renderErrorScreen();
@@ -120,19 +124,21 @@ void DisplayManager::render() {
         }
     }
 
-    _display.display();
+    _u8g2.sendBuffer();
 }
 
 // ============================================================
 // Screen 0: CLI Status Screen — terminal frame with typing effect
 // ============================================================
 void DisplayManager::renderStatusScreen() {
+    _u8g2.setFont(u8g2_font_6x10_tr);
+
     // --- Top: status text, no frame ---
-    _display.setTextSize(1);
-    _display.setCursor(0, 0);
-    _display.print("*");
+    // y is baseline in U8g2; y=8 puts text at top of screen
+    char statusBuf[32];
     String statusStr = (_data.status.length() > 0) ? _data.status : "idle";
-    _display.print(statusStr);
+    snprintf(statusBuf, sizeof(statusBuf), "*%s", statusStr.c_str());
+    _u8g2.drawStr(0, 8, statusBuf);
 
     // WiFi icon top-right
     drawWifiIcon(116, 0, _wifiConnected, _wifiRssi);
@@ -140,132 +146,154 @@ void DisplayManager::renderStatusScreen() {
     // --- Middle: framed typing area ---
     const int boxY = 16;
     const int boxH = 32;
-    _display.drawRect(0, boxY, 128, boxH, SH110X_WHITE);
+    _u8g2.drawFrame(0, boxY, 128, boxH);
 
     // Typing effect inside the frame
     updateTyping();
     String typedText = getCurrentTypingText();
-
     bool showCursor = _typing.cursorVisible;
 
-    _display.setCursor(4, boxY + 8);
-    _display.setTextSize(1);
-    _display.print("> /");
-    _display.print(typedText);
-    if (showCursor) {
-        _display.print("_");
-    }
+    String line = "> /" + typedText;
+    if (showCursor) line += "_";
+    // y = boxY + 20 puts baseline roughly centered in the frame
+    _u8g2.drawStr(4, boxY + 20, line.c_str());
 }
 
 // ============================================================
 // Screen 1: Session Usage Screen
 // ============================================================
 void DisplayManager::renderSessionScreen() {
-    // Header
-    _display.setTextSize(1);
-    _display.setCursor(0, 1);
-    _display.print("Session Usage");
-    drawWifiIcon(116, 1, _wifiConnected, _wifiRssi);
-    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SH110X_WHITE);
+    _u8g2.setFont(u8g2_font_6x10_tr);
+
+    // Header (y=8 = baseline at top)
+    _u8g2.drawStr(0, 8, "Session Usage");
+    drawWifiIcon(116, 0, _wifiConnected, _wifiRssi);
+    _u8g2.drawHLine(0, 10, 128);
 
     // Usage numbers: e.g. "45 / 100 %" or "150 / 500 req"
-    _display.setCursor(0, 13);
     char usageBuf[32];
     snprintf(usageBuf, sizeof(usageBuf), "%d / %d %s",
              _data.sessionUsed, _data.sessionLimit,
              _data.sessionUnit.c_str());
-    _display.print(usageBuf);
+    _u8g2.drawStr(0, 22, usageBuf);
 
-    // Big progress bar (full width minus percentage label)
+    // Progress bar
     float pct = safePercent(_data.sessionUsed, _data.sessionLimit);
-    drawProgressBar(0, 24, PROGRESS_BAR_WIDTH, 8, pct);
+    drawProgressBar(0, 26, PROGRESS_BAR_WIDTH, 8, pct);
 
-    // Percentage right of bar
+    // Percentage right of bar (baseline at y=34 aligns with bar)
     char pctBuf[6];
     snprintf(pctBuf, sizeof(pctBuf), "%2d%%", (int)(pct * 100));
-    _display.setCursor(PROGRESS_BAR_WIDTH + 2, 25);
-    _display.print(pctBuf);
+    _u8g2.drawStr(PROGRESS_BAR_WIDTH + 2, 34, pctBuf);
 
     // Reset time
-    _display.setCursor(0, 38);
-    _display.print("Resets: ");
-    _display.print(formatTimeUntil(_data.resetSession));
+    String resetStr = "Resets: " + formatTimeUntil(_data.resetSession);
+    _u8g2.drawStr(0, 48, resetStr.c_str());
 }
 
 // ============================================================
 // Screen 2: Weekly Usage Screen
 // ============================================================
 void DisplayManager::renderWeeklyScreen() {
+    _u8g2.setFont(u8g2_font_6x10_tr);
+
     // Header
-    _display.setTextSize(1);
-    _display.setCursor(0, 1);
-    _display.print("Weekly Usage");
-    drawWifiIcon(116, 1, _wifiConnected, _wifiRssi);
-    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SH110X_WHITE);
+    _u8g2.drawStr(0, 8, "Weekly Usage");
+    drawWifiIcon(116, 0, _wifiConnected, _wifiRssi);
+    _u8g2.drawHLine(0, 10, 128);
 
     // Usage numbers
-    _display.setCursor(0, 13);
     char usageBuf[32];
     snprintf(usageBuf, sizeof(usageBuf), "%d / %d %s",
              _data.weeklyUsed, _data.weeklyLimit,
              _data.weeklyUnit.c_str());
-    _display.print(usageBuf);
+    _u8g2.drawStr(0, 22, usageBuf);
 
     // Progress bar
     float pct = safePercent(_data.weeklyUsed, _data.weeklyLimit);
-    drawProgressBar(0, 24, PROGRESS_BAR_WIDTH, 8, pct);
+    drawProgressBar(0, 26, PROGRESS_BAR_WIDTH, 8, pct);
 
     char pctBuf[6];
     snprintf(pctBuf, sizeof(pctBuf), "%2d%%", (int)(pct * 100));
-    _display.setCursor(PROGRESS_BAR_WIDTH + 2, 25);
-    _display.print(pctBuf);
+    _u8g2.drawStr(PROGRESS_BAR_WIDTH + 2, 34, pctBuf);
 
     // Weekly reset
-    _display.setCursor(0, 38);
-    _display.print("Resets: ");
-    // Parse ISO date to "MM-DD HH:MM" style
     String wr = _data.resetWeekly;
     if (wr.length() >= 16) {
         String datePart = wr.substring(5, 10);   // "MM-DD"
         String timePart = wr.substring(11, 16);  // "HH:MM"
-        _display.print(datePart + " " + timePart);
+        String resetStr = "Resets: " + datePart + " " + timePart;
+        _u8g2.drawStr(0, 48, resetStr.c_str());
     } else {
-        _display.print("--/-- --:--");
+        _u8g2.drawStr(0, 48, "Resets: --/-- --:--");
     }
 }
 
 // --------------- Error Screen ---------------
 void DisplayManager::renderErrorScreen() {
-    _display.setTextSize(1);
-    _display.setCursor(0, 1);
-    _display.print("CLAUDY");
-    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SH110X_WHITE);
+    _u8g2.setFont(u8g2_font_6x10_tr);
 
-    _display.setCursor(0, 14);
-    _display.print("! ERROR !");
+    _u8g2.drawStr(0, 8, "CLAUDY");
+    _u8g2.drawHLine(0, 10, 128);
 
-    _display.setCursor(0, 26);
+    _u8g2.drawStr(0, 22, "! ERROR !");
+
     String msg = _errorMsg;
     if (msg.length() > 42) msg = msg.substring(0, 42);
-    _display.print(msg.substring(0, 21));
+    char line1[22];
+    char line2[22];
+    snprintf(line1, sizeof(line1), "%s", msg.substring(0, 21).c_str());
+    _u8g2.drawStr(0, 34, line1);
     if (msg.length() > 21) {
-        _display.setCursor(0, 36);
-        _display.print(msg.substring(21));
+        snprintf(line2, sizeof(line2), "%s", msg.substring(21).c_str());
+        _u8g2.drawStr(0, 44, line2);
     }
 
-    _display.setCursor(0, 52);
-    _display.print("Retrying...");
+    _u8g2.drawStr(0, 60, "Retrying...");
 }
 
 // --------------- No Data Screen ---------------
 void DisplayManager::renderNoDataScreen() {
-    _display.setTextSize(1);
-    _display.setCursor(0, 1);
-    _display.print("CLAUDY");
-    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SH110X_WHITE);
+    _u8g2.setFont(u8g2_font_6x10_tr);
 
-    _display.setCursor(20, 28);
-    _display.print("Fetching data...");
+    _u8g2.drawStr(0, 8, "CLAUDY");
+    _u8g2.drawHLine(0, 10, 128);
+
+    _u8g2.drawStr(20, 36, "Fetching data...");
+}
+
+// ============================================================
+// Animation: draw a full-screen bitmap from PROGMEM
+// Converts horizontal MSB-first (Adafruit) to U8g2 vertical tile format
+// ============================================================
+void DisplayManager::drawFrame(const uint8_t* frameBitmap) {
+    _u8g2.clearBuffer();
+    uint8_t* buf = _u8g2.getBufferPtr();
+
+    // U8g2 buffer for SH1106 128x64: organized as 8 tile rows,
+    // each tile row is 128 bytes (one byte per column, 8 vertical pixels per byte).
+    // Source bitmap: horizontal, MSB-first, 16 bytes per row, 64 rows.
+
+    for (int y = 0; y < 64; y++) {
+        for (int x = 0; x < 128; x++) {
+            // Read pixel from horizontal bitmap (MSB first)
+            int srcByte = y * 16 + x / 8;
+            int srcBit  = 7 - (x % 8);
+            uint8_t pixel = (pgm_read_byte(&frameBitmap[srcByte]) >> srcBit) & 1;
+
+            // Write pixel to U8g2 vertical tile buffer
+            int tileRow  = y / 8;
+            int bitInTile = y % 8;
+            int bufIdx   = tileRow * 128 + x;
+            if (pixel) {
+                buf[bufIdx] |= (1 << bitInTile);
+            }
+        }
+    }
+}
+
+void DisplayManager::sendBuffer() {
+    _u8g2.sendBuffer();
 }
 
 // ============================================================
@@ -273,19 +301,19 @@ void DisplayManager::renderNoDataScreen() {
 // ============================================================
 
 void DisplayManager::drawProgressBar(int x, int y, int w, int h, float pct) {
-    _display.drawRect(x, y, w, h, SH110X_WHITE);
+    _u8g2.drawFrame(x, y, w, h);
     int fillW = (int)((w - 2) * pct);
     if (fillW < 0) fillW = 0;
     if (fillW > w - 2) fillW = w - 2;
     if (fillW > 0) {
-        _display.fillRect(x + 1, y + 1, fillW, h - 2, SH110X_WHITE);
+        _u8g2.drawBox(x + 1, y + 1, fillW, h - 2);
     }
 }
 
 void DisplayManager::drawWifiIcon(int x, int y, bool connected, int rssi) {
     if (!connected) {
-        _display.drawLine(x, y, x + 4, y + 4, SH110X_WHITE);
-        _display.drawLine(x + 4, y, x, y + 4, SH110X_WHITE);
+        _u8g2.drawLine(x, y, x + 4, y + 4);
+        _u8g2.drawLine(x + 4, y, x, y + 4);
         return;
     }
 
@@ -305,9 +333,9 @@ void DisplayManager::drawWifiIcon(int x, int y, bool connected, int rssi) {
         int bh = barHeights[i];
         int by = y + 9 - bh;
         if (i < level) {
-            _display.fillRect(bx, by, barW, bh, SH110X_WHITE);
+            _u8g2.drawBox(bx, by, barW, bh);
         } else {
-            _display.drawRect(bx, by, barW, bh, SH110X_WHITE);
+            _u8g2.drawFrame(bx, by, barW, bh);
         }
     }
 }
