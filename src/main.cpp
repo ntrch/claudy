@@ -55,12 +55,7 @@ void setup() {
     Serial.println("\n[Main] ESP32 Claude Companion starting...");
 
     // Watchdog: 30 seconds (covers WiFi setup)
-    esp_task_wdt_config_t wdtCfg = {
-        .timeout_ms     = 30000,
-        .idle_core_mask = 0,
-        .trigger_panic  = true,
-    };
-    esp_task_wdt_reconfigure(&wdtCfg);
+    esp_task_wdt_init(30, true);
     esp_task_wdt_add(NULL);
 
     // Wake button (GPIO0) as input
@@ -150,13 +145,10 @@ void setup() {
         display.setError("No WiFi");
     }
 
-    // Expand watchdog for face animation cycles (10s margin)
-    esp_task_wdt_config_t wdtLong = {
-        .timeout_ms     = 15000,
-        .idle_core_mask = 0,
-        .trigger_panic  = true,
-    };
-    esp_task_wdt_reconfigure(&wdtLong);
+    // Expand watchdog for face animation cycles
+    esp_task_wdt_deinit();
+    esp_task_wdt_init(15, true);
+    esp_task_wdt_add(NULL);
 
     lastApiPoll    = millis();
     lastDataChange = millis();
