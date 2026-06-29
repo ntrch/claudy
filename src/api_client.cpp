@@ -68,6 +68,10 @@ bool ApiClient::refreshOAuthToken() {
     }
 
     Serial.println("[API] Refreshing OAuth access token...");
+    Serial.print("[API]   refresh_token len: ");
+    Serial.println(_refreshToken.length());
+    Serial.print("[API]   client_id len: ");
+    Serial.println(_clientId.length());
 
     WiFiClientSecure secureClient;
     secureClient.setInsecure();
@@ -78,17 +82,19 @@ bool ApiClient::refreshOAuthToken() {
         return false;
     }
 
-    http.addHeader("Content-Type", "application/json");
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
 
-    String body = "{\"grant_type\":\"refresh_token\","
-                  "\"refresh_token\":\"" + _refreshToken + "\","
-                  "\"client_id\":\"" + _clientId + "\"}";
+    String body = "grant_type=refresh_token"
+                  "&refresh_token=" + _refreshToken +
+                  "&client_id=" + _clientId;
 
     int code = http.POST(body);
     bool ok = false;
 
     if (code == 200) {
         String payload = http.getString();
+        Serial.print("[API] OAuth response: ");
+        Serial.println(payload.substring(0, 100));
         JsonDocument doc;
         DeserializationError err = deserializeJson(doc, payload);
         if (!err) {
@@ -109,6 +115,11 @@ bool ApiClient::refreshOAuthToken() {
 
     if (!ok) {
         Serial.printf("[API] OAuth refresh failed HTTP %d\n", code);
+        if (code > 0) {
+            String errBody = http.getString();
+            Serial.print("[API] Response: ");
+            Serial.println(errBody.substring(0, 200));
+        }
     }
 
     http.end();
