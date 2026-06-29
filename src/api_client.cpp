@@ -139,12 +139,9 @@ ApiResult ApiClient::fetchUsage(UsageData& outData) {
         return ApiResult::ERR_NO_WIFI;
     }
 
-    // If OAuth and no access token yet, try refresh first
     if (_authType == AuthType::OAUTH_TOKEN && _authToken.length() == 0) {
-        if (!refreshOAuthToken()) {
-            _lastError = "OAuth: token yenilenemedi";
-            return ApiResult::ERR_HTTP_STATUS;
-        }
+        _lastError = "OAuth token girilmemis";
+        return ApiResult::ERR_HTTP_STATUS;
     }
 
     Serial.println("[API] POST " ANTHROPIC_API_URL);
@@ -165,6 +162,7 @@ ApiResult ApiClient::fetchUsage(UsageData& outData) {
 
     if (_authType == AuthType::OAUTH_TOKEN) {
         http.addHeader("Authorization", "Bearer " + _authToken);
+        http.addHeader("anthropic-beta", ANTHROPIC_OAUTH_BETA);
     } else {
         http.addHeader("x-api-key", _authToken);
     }
@@ -184,17 +182,13 @@ ApiResult ApiClient::fetchUsage(UsageData& outData) {
     Serial.print("[API] HTTP status: ");
     Serial.println(code);
 
-    // Handle 401: try OAuth refresh and retry once
-    if (code == 401 && _authType == AuthType::OAUTH_TOKEN && !_refreshAttempted) {
+    // 401 = token invalid/expired. setup-token tokens are long-lived and
+    // cannot be refreshed, so report a clear error.
+    if (code == 401 && _authType == AuthType::OAUTH_TOKEN) {
+        String errBody = http.getString();
+        Serial.print("[API] 401 body: ");
+        Serial.println(errBody.substring(0, 200));
         http.end();
-        Serial.println("[API] 401 — attempting OAuth token refresh...");
-        _refreshAttempted = true;
-        if (refreshOAuthToken()) {
-            ApiResult result = fetchUsage(outData);
-            _refreshAttempted = false;
-            return result;
-        }
-        _refreshAttempted = false;
         _lastError = "OAuth token gecersiz";
         return ApiResult::ERR_HTTP_STATUS;
     }

@@ -50,6 +50,8 @@
 #define ANTHROPIC_API_URL           "https://api.anthropic.com/v1/messages"
 #define ANTHROPIC_API_VERSION       "2023-06-01"
 #define ANTHROPIC_MIN_MODEL         "claude-haiku-4-5-20251001"
+// OAuth (subscription) access tokens require this beta header to be accepted.
+#define ANTHROPIC_OAUTH_BETA        "oauth-2025-04-20"
 
 // --------------- OAuth ---------------
 #define OAUTH_REFRESH_URL           "https://console.anthropic.com/v1/oauth/token"
