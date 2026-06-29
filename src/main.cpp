@@ -112,7 +112,19 @@ void setup() {
     }
 
     // Configure API client
-    apiClient.setAuth(wifiMgr.getAuthType(), wifiMgr.getToken());
+    apiClient.setAuth(wifiMgr.getAuthType(),
+        (wifiMgr.getAuthType() == AuthType::OAUTH_TOKEN)
+            ? wifiMgr.getAccessToken()   // use cached access token (may be empty, refresh will happen)
+            : wifiMgr.getToken());       // use API key directly
+
+    if (wifiMgr.getAuthType() == AuthType::OAUTH_TOKEN) {
+        apiClient.setOAuthCredentials(
+            wifiMgr.getToken(),          // refresh token
+            wifiMgr.getClientId(),       // client ID
+            wifiMgr.getAccessToken()     // cached access token (may be empty)
+        );
+        apiClient.setWifiManager(&wifiMgr);
+    }
 
     // Update WiFi status in display
     bool connected = wifiMgr.isConnected();

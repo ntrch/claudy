@@ -51,6 +51,11 @@
 #define ANTHROPIC_API_VERSION       "2023-06-01"
 #define ANTHROPIC_MIN_MODEL         "claude-haiku-4-5-20251001"
 
+// --------------- OAuth ---------------
+#define OAUTH_REFRESH_URL           "https://console.anthropic.com/api/oauth/token"
+#define PREF_KEY_OAUTH_CLIENT_ID    "client_id"
+#define PREF_KEY_ACCESS_TOKEN       "access_tkn"
+
 // --------------- Progress Bar ---------------
 #define PROGRESS_BAR_WIDTH          108  // pixels
 #define PROGRESS_BAR_HEIGHT         8    // pixels (taller for new screens)

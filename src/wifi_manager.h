@@ -26,8 +26,13 @@ public:
     void maintain();
 
     // Accessors for saved credentials
-    AuthType getAuthType() const { return _authType; }
-    String   getToken()    const { return _token; }
+    AuthType getAuthType()    const { return _authType; }
+    String   getToken()       const { return _token; }        // refresh token for OAuth, API key for API_KEY
+    String   getClientId()    const { return _clientId; }     // OAuth client ID
+    String   getAccessToken() const { return _accessToken; }  // cached access token
+
+    // Save a new access token to NVS (called by ApiClient after refresh)
+    void setAccessToken(const String& token);
 
     // RSSI of current connection
     int getRssi() const;
@@ -40,10 +45,12 @@ private:
     Preferences  _prefs;
     AuthType     _authType;
     String       _token;
+    String       _clientId;
+    String       _accessToken;
 
     bool         _configured;
     uint32_t     _lastReconnectAttempt;
 
     void loadConfig();
-    void saveConfig(const String& authType, const String& token);
+    void saveConfig();
 };

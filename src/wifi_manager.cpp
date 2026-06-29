@@ -10,52 +10,55 @@
 WifiSetupManager::WifiSetupManager()
     : _authType(AuthType::API_KEY)
     , _token("")
+    , _clientId("")
+    , _accessToken("")
     , _configured(false)
     , _lastReconnectAttempt(0)
 {}
 
 // --------------- begin() ---------------
 bool WifiSetupManager::begin(std::function<void(const String&)> displayCallback) {
-    // Load previously saved config from Preferences (NVS)
     loadConfig();
 
-    // Configure WiFiManager
     _wm.setConfigPortalTimeout(WIFI_CONNECT_TIMEOUT_S);
-    _wm.setConnectTimeout(20);        // 20s per connect attempt
+    _wm.setConnectTimeout(20);
     _wm.setDebugOutput(true);
     _wm.setSaveConfigCallback([this]() {
         Serial.println("[WiFi] Config saved by portal callback");
     });
 
-    // Turkish portal title and style
     _wm.setTitle("Claudy Kurulum");
-    _wm.setCustomHeadElement("<style>body{font-family:sans-serif;}</style>");
+    _wm.setCustomHeadElement("<style>body{font-family:sans-serif;} .c{text-align:left;}</style>");
 
-    // Auth type selector — custom HTML rendered as a dropdown
-    // Note: WiFiManagerParameter with id="" and custom HTML injects raw HTML
-    const char* authTypeHtml = R"rawliteral(
-<br/>
-<label for='auth_type'><b>Kimlik Dogrulama Turu</b></label><br/>
-<select name='auth_type' id='auth_type' style='width:100%;padding:5px;margin:5px 0;'>
-  <option value='oauth'>Abone (Pro/Max/Team) - OAuth Token</option>
-  <option value='apikey'>API Anahtari - Gelistirici</option>
-</select>
-<br/><br/>
-<label for='token'><b>Token / Anahtar</b></label><br/>
-<small>Pro/Max: Claude Code'da <code>claude setup-token</code> komutu ile alin</small><br/>
-<small>API: Anthropic Console'dan API anahtarinizi kopyalayin</small>
-)rawliteral";
+    // --- Custom HTML explanation block (no input) ---
+    WiFiManagerParameter htmlInfo(
+        "<hr><h3>Claude Ayarlari</h3>"
+        "<p><b>Adim 1:</b> Terminalde <code>claude setup-token</code> calistirin</p>"
+        "<p><b>Adim 2:</b> Claude Code binary'den Client ID'yi cikartin:<br>"
+        "<code>node -e \"...\"</code></p>"
+        "<p><b>Adim 3:</b> Asagidaki alanlari doldurun</p><hr>"
+    );
 
-    // Inject the auth type dropdown as a custom HTML block
-    WiFiManagerParameter authTypeParam("auth_type_html", authTypeHtml, "", 0, authTypeHtml);
+    // --- Auth type: use a simple text input (oauth or apikey) ---
+    // WiFiManager doesn't support dropdowns natively, so use a text field
+    // with instructions
+    WiFiManagerParameter htmlAuthLabel(
+        "<label><b>Kimlik Dogrulama Turu</b></label><br>"
+        "<small>Abone icin: <b>oauth</b> yazin | API Anahtari icin: <b>apikey</b> yazin</small>"
+    );
 
-    // Token input field (pre-fill with saved token)
-    WiFiManagerParameter tokenParam("token", "Token / Anahtar", _token.c_str(), 200);
+    String authDefault = (_authType == AuthType::OAUTH_TOKEN) ? "oauth" : "apikey";
+    WiFiManagerParameter paramAuthType("auth_type", "Tur (oauth / apikey)", authDefault.c_str(), 10);
 
-    _wm.addParameter(&authTypeParam);
-    _wm.addParameter(&tokenParam);
+    WiFiManagerParameter paramClientId("client_id", "OAuth Client ID", _clientId.c_str(), 100);
+    WiFiManagerParameter paramToken("token", "Refresh Token / API Key", _token.c_str(), 250);
 
-    // Optional: notify display
+    _wm.addParameter(&htmlInfo);
+    _wm.addParameter(&htmlAuthLabel);
+    _wm.addParameter(&paramAuthType);
+    _wm.addParameter(&paramClientId);
+    _wm.addParameter(&paramToken);
+
     if (displayCallback) {
         displayCallback("Baglaniyor...");
     }
@@ -67,28 +70,19 @@ bool WifiSetupManager::begin(std::function<void(const String&)> displayCallback)
         Serial.print("[WiFi] Connected! IP: ");
         Serial.println(WiFi.localIP());
 
-        // Read back custom parameters
-        String newAuthTypeStr = String(authTypeParam.getValue());
-        String newToken       = String(tokenParam.getValue());
+        String newAuthStr  = String(paramAuthType.getValue());
+        String newClientId = String(paramClientId.getValue());
+        String newToken    = String(paramToken.getValue());
 
-        // Determine auth type from dropdown value
-        AuthType newAuthType = (newAuthTypeStr == "oauth")
-                               ? AuthType::OAUTH_TOKEN
-                               : AuthType::API_KEY;
+        AuthType newAuthType = (newAuthStr == "oauth") ? AuthType::OAUTH_TOKEN : AuthType::API_KEY;
 
-        // Save if changed
-        bool authChanged  = (newAuthType != _authType);
-        bool tokenChanged = (newToken != _token && newToken.length() > 0);
+        bool changed = false;
+        if (newAuthType != _authType) { _authType = newAuthType; changed = true; }
+        if (newClientId.length() > 0 && newClientId != _clientId) { _clientId = newClientId; changed = true; }
+        if (newToken.length() > 0 && newToken != _token) { _token = newToken; changed = true; }
 
-        if (authChanged || tokenChanged) {
-            _authType = newAuthType;
-            if (newToken.length() > 0) {
-                _token = newToken;
-            }
-            saveConfig(
-                (_authType == AuthType::OAUTH_TOKEN) ? "oauth" : "apikey",
-                _token
-            );
+        if (changed) {
+            saveConfig();
         }
 
         if (displayCallback) {
@@ -155,11 +149,21 @@ void WifiSetupManager::resetConfig() {
     ESP.restart();
 }
 
+// --------------- setAccessToken() ---------------
+void WifiSetupManager::setAccessToken(const String& token) {
+    _accessToken = token;
+    _prefs.begin(PREF_NAMESPACE, false);
+    _prefs.putString(PREF_KEY_ACCESS_TOKEN, token);
+    _prefs.end();
+}
+
 // --------------- Private: load config ---------------
 void WifiSetupManager::loadConfig() {
     _prefs.begin(PREF_NAMESPACE, true); // read-only
-    String authTypeStr = _prefs.getString(PREF_KEY_AUTH_TYPE, "apikey");
+    String authTypeStr = _prefs.getString(PREF_KEY_AUTH_TYPE, "oauth");
     _token             = _prefs.getString(PREF_KEY_TOKEN, "");
+    _clientId          = _prefs.getString(PREF_KEY_OAUTH_CLIENT_ID, "");
+    _accessToken       = _prefs.getString(PREF_KEY_ACCESS_TOKEN, "");
     _prefs.end();
 
     _authType = (authTypeStr == "oauth") ? AuthType::OAUTH_TOKEN : AuthType::API_KEY;
@@ -168,13 +172,19 @@ void WifiSetupManager::loadConfig() {
     Serial.println(authTypeStr);
     Serial.print("[WiFi] Token set: ");
     Serial.println(_token.length() > 0 ? "yes" : "no");
+    Serial.print("[WiFi] Client ID set: ");
+    Serial.println(_clientId.length() > 0 ? "yes" : "no");
+    Serial.print("[WiFi] Access token cached: ");
+    Serial.println(_accessToken.length() > 0 ? "yes" : "no");
 }
 
 // --------------- Private: save config ---------------
-void WifiSetupManager::saveConfig(const String& authType, const String& token) {
+void WifiSetupManager::saveConfig() {
     _prefs.begin(PREF_NAMESPACE, false); // read-write
-    _prefs.putString(PREF_KEY_AUTH_TYPE, authType);
-    _prefs.putString(PREF_KEY_TOKEN, token);
+    _prefs.putString(PREF_KEY_AUTH_TYPE, (_authType == AuthType::OAUTH_TOKEN) ? "oauth" : "apikey");
+    _prefs.putString(PREF_KEY_TOKEN, _token);
+    _prefs.putString(PREF_KEY_OAUTH_CLIENT_ID, _clientId);
+    _prefs.putString(PREF_KEY_ACCESS_TOKEN, _accessToken);
     _prefs.end();
 
     Serial.println("[WiFi] Config saved to NVS");

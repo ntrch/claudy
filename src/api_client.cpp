@@ -4,8 +4,10 @@
 // ============================================================
 
 #include "api_client.h"
+#include "wifi_manager.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
 
 // Rate-limit headers to collect from Anthropic response
 static const char* kRateLimitHeaders[] = {
@@ -31,6 +33,10 @@ static const char* kRequestBody =
 ApiClient::ApiClient()
     : _authType(AuthType::API_KEY)
     , _authToken("")
+    , _refreshToken("")
+    , _clientId("")
+    , _refreshAttempted(false)
+    , _wifiMgr(nullptr)
 {}
 
 // --------------- Configure authentication ---------------
@@ -41,11 +47,87 @@ void ApiClient::setAuth(AuthType type, const String& token) {
     Serial.println(type == AuthType::OAUTH_TOKEN ? "OAuth Token" : "API Key");
 }
 
+// --------------- Set OAuth credentials ---------------
+void ApiClient::setOAuthCredentials(const String& refreshToken, const String& clientId, const String& accessToken) {
+    _refreshToken = refreshToken;
+    _clientId     = clientId;
+    if (accessToken.length() > 0) {
+        _authToken = accessToken;  // use cached access token
+    }
+}
+
+// --------------- OAuth token refresh ---------------
+bool ApiClient::refreshOAuthToken() {
+    if (_refreshToken.length() == 0) {
+        Serial.println("[API] No refresh token available");
+        return false;
+    }
+    if (_clientId.length() == 0) {
+        Serial.println("[API] No OAuth client ID available");
+        return false;
+    }
+
+    Serial.println("[API] Refreshing OAuth access token...");
+
+    WiFiClientSecure secureClient;
+    secureClient.setInsecure();
+
+    HTTPClient http;
+    if (!http.begin(secureClient, OAUTH_REFRESH_URL)) {
+        Serial.println("[API] OAuth refresh HTTP begin failed");
+        return false;
+    }
+
+    http.addHeader("Content-Type", "application/json");
+
+    String body = "{\"grant_type\":\"refresh_token\","
+                  "\"refresh_token\":\"" + _refreshToken + "\","
+                  "\"client_id\":\"" + _clientId + "\"}";
+
+    int code = http.POST(body);
+    bool ok = false;
+
+    if (code == 200) {
+        String payload = http.getString();
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, payload);
+        if (!err) {
+            String newAccess = doc["access_token"] | "";
+            if (newAccess.length() > 0) {
+                _authToken = newAccess;
+                if (_wifiMgr) {
+                    _wifiMgr->setAccessToken(newAccess);
+                }
+                Serial.println("[API] OAuth token refreshed successfully");
+                ok = true;
+            }
+        } else {
+            Serial.print("[API] OAuth JSON parse error: ");
+            Serial.println(err.c_str());
+        }
+    }
+
+    if (!ok) {
+        Serial.printf("[API] OAuth refresh failed HTTP %d\n", code);
+    }
+
+    http.end();
+    return ok;
+}
+
 // --------------- Main fetch ---------------
 ApiResult ApiClient::fetchUsage(UsageData& outData) {
     if (WiFi.status() != WL_CONNECTED) {
         _lastError = "No WiFi connection";
         return ApiResult::ERR_NO_WIFI;
+    }
+
+    // If OAuth and no access token yet, try refresh first
+    if (_authType == AuthType::OAUTH_TOKEN && _authToken.length() == 0) {
+        if (!refreshOAuthToken()) {
+            _lastError = "OAuth: token yenilenemedi";
+            return ApiResult::ERR_HTTP_STATUS;
+        }
     }
 
     Serial.println("[API] POST " ANTHROPIC_API_URL);
@@ -83,6 +165,21 @@ ApiResult ApiClient::fetchUsage(UsageData& outData) {
 
     Serial.print("[API] HTTP status: ");
     Serial.println(code);
+
+    // Handle 401: try OAuth refresh and retry once
+    if (code == 401 && _authType == AuthType::OAUTH_TOKEN && !_refreshAttempted) {
+        http.end();
+        Serial.println("[API] 401 — attempting OAuth token refresh...");
+        _refreshAttempted = true;
+        if (refreshOAuthToken()) {
+            ApiResult result = fetchUsage(outData);
+            _refreshAttempted = false;
+            return result;
+        }
+        _refreshAttempted = false;
+        _lastError = "OAuth token gecersiz";
+        return ApiResult::ERR_HTTP_STATUS;
+    }
 
     // 200 OK or 429 Too Many Requests both return useful rate-limit headers
     if (code != 200 && code != 429) {
