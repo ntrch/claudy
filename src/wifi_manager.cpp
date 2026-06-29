@@ -141,11 +141,13 @@ int WifiSetupManager::getRssi() const {
 
 // --------------- resetConfig() ---------------
 void WifiSetupManager::resetConfig() {
+    WiFi.disconnect(true, true);
     _wm.resetSettings();
     _prefs.begin(PREF_NAMESPACE, false);
     _prefs.clear();
     _prefs.end();
     Serial.println("[WiFi] Config reset. Restarting...");
+    delay(500);
     ESP.restart();
 }
 

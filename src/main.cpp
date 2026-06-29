@@ -57,7 +57,9 @@ void setup() {
     pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);
 
     // Hold BOOT button during startup = factory reset (clear WiFi + config)
-    delay(100);
+    delay(1000);
+    Serial.print("[Main] BOOT button state: ");
+    Serial.println(digitalRead(WAKE_BUTTON_PIN) == LOW ? "PRESSED" : "released");
     if (digitalRead(WAKE_BUTTON_PIN) == LOW) {
         Serial.println("[Main] BOOT button held — factory reset!");
         // Show reset message on display first
