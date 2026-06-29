@@ -62,16 +62,21 @@ bool ApiClient::refreshOAuthToken() {
         Serial.println("[API] No refresh token available");
         return false;
     }
-    if (_clientId.length() == 0) {
-        Serial.println("[API] No OAuth client ID available");
-        return false;
-    }
+
+    // Always use the public Claude Code client_id, not whatever the user
+    // may have typed into the portal — it is a fixed constant for all installs.
+    String clientId = OAUTH_CLIENT_ID;
+
+    // Trim accidental whitespace/newlines from the refresh token so the
+    // request body stays valid JSON.
+    String refreshToken = _refreshToken;
+    refreshToken.trim();
 
     Serial.println("[API] Refreshing OAuth access token...");
     Serial.print("[API]   refresh_token len: ");
-    Serial.println(_refreshToken.length());
-    Serial.print("[API]   client_id len: ");
-    Serial.println(_clientId.length());
+    Serial.println(refreshToken.length());
+    Serial.print("[API]   client_id: ");
+    Serial.println(clientId);
 
     WiFiClientSecure secureClient;
     secureClient.setInsecure();
@@ -86,8 +91,8 @@ bool ApiClient::refreshOAuthToken() {
     http.addHeader("Content-Type", "application/json");
 
     String body = "{\"grant_type\":\"refresh_token\","
-                  "\"refresh_token\":\"" + _refreshToken + "\","
-                  "\"client_id\":\"" + _clientId + "\"}";
+                  "\"refresh_token\":\"" + refreshToken + "\","
+                  "\"client_id\":\"" + clientId + "\"}";
 
     int code = http.POST(body);
     bool ok = false;

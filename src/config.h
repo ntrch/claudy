@@ -53,6 +53,9 @@
 
 // --------------- OAuth ---------------
 #define OAUTH_REFRESH_URL           "https://console.anthropic.com/v1/oauth/token"
+// Public Claude Code OAuth client_id — same for every install, not a secret.
+// Hardcoded so the user never has to extract it from the binary.
+#define OAUTH_CLIENT_ID             "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 #define PREF_KEY_OAUTH_CLIENT_ID    "client_id"
 #define PREF_KEY_ACCESS_TOKEN       "access_tkn"
 
