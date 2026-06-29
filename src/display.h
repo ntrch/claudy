@@ -12,10 +12,10 @@
 
 // --------------- Usage Data Structure ---------------
 struct UsageData {
-    // Daily usage
-    int dailyUsed;
-    int dailyLimit;
-    String dailyUnit;
+    // Session (daily) usage
+    int sessionUsed;
+    int sessionLimit;
+    String sessionUnit;
 
     // Weekly usage
     int weeklyUsed;
@@ -28,15 +28,40 @@ struct UsageData {
     String costCurrency;
 
     // Reset times (raw ISO string, parsed locally)
-    String resetDaily;   // e.g. "2024-01-15T00:00:00Z"
+    String resetSession; // e.g. "2024-01-15T00:00:00Z"
     String resetWeekly;  // e.g. "2024-01-21T00:00:00Z"
 
-    // Plan
+    // Backwards-compatible aliases
+    int   dailyUsed;
+    int   dailyLimit;
+    String dailyUnit;
+    String resetDaily;
+
+    // Plan / status
     String plan;
+    String status;   // "running", "idle", "thinking", etc.
 
     // State flags
-    bool valid;          // true if data has been fetched successfully
-    String errorMsg;     // non-empty if last fetch failed
+    bool valid;      // true if data has been fetched successfully
+    String errorMsg; // non-empty if last fetch failed
+};
+
+// --------------- Display Screens ---------------
+#define SCREEN_STATUS  0
+#define SCREEN_SESSION 1
+#define SCREEN_WEEKLY  2
+#undef  SCREEN_COUNT
+#define SCREEN_COUNT   3
+
+// --------------- Typing Animation State ---------------
+struct TypingState {
+    uint8_t  msgIndex;      // which demo message is active
+    uint16_t charPos;       // how many chars shown
+    bool     erasing;       // false = typing, true = erasing
+    uint32_t lastCharMs;    // millis() of last char add/remove
+    uint32_t pauseUntilMs;  // millis() when pause ends (0 = not pausing)
+    bool     cursorVisible; // blink state
+    uint32_t lastCursorMs;  // millis() of last cursor blink
 };
 
 // --------------- Display Manager Class ---------------
@@ -60,10 +85,11 @@ public:
     void setError(const String& message);
     void clearError();
 
-    // Rendering
+    // Rendering (non-blocking — uses millis() for typing animation)
     void render();
-    void renderUsageScreen();
-    void renderCostScreen();
+    void renderStatusScreen();
+    void renderSessionScreen();
+    void renderWeeklyScreen();
     void renderErrorScreen();
     void renderNoDataScreen();
 
@@ -84,10 +110,17 @@ private:
     bool             _hasError;
     String           _errorMsg;
 
+    // Typing animation state (for status screen)
+    TypingState      _typing;
+
     // Helpers
-    void drawHeader(const char* title);
     void drawProgressBar(int x, int y, int w, int h, float pct);
     void drawWifiIcon(int x, int y, bool connected, int rssi);
     String formatTimeUntil(const String& isoTimestamp);
     float safePercent(int used, int limit);
+
+    // Typing animation helpers
+    void initTyping();
+    void updateTyping();
+    String getCurrentTypingText();
 };

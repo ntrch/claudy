@@ -13,15 +13,22 @@
 #define OLED_SCREEN_HEIGHT  64
 #define OLED_RESET_PIN      -1   // Share Arduino reset pin
 
-// --------------- Timing Constants ---------------
-#define BOOT_ANIM_TOTAL_MS          30000UL   // Total boot animation: 30 seconds
-#define BOOT_ANIM_PART1_MS          15000UL   // Animation 1 (CLAUDY typing): 15 seconds
-#define BOOT_ANIM_PART2_MS          15000UL   // Animation 2 (WiFi connecting): 15 seconds
+// --------------- 60-Second Display Cycle Timing ---------------
+#define CYCLE_TOTAL_MS          60000UL   // Full cycle length
+#define FACE_ANIM_DURATION_MS   5000UL    // ~5s blocking face animation (50 frames @ 100ms)
+#define STATUS_DURATION_MS      15000UL   // CLI status screen
+#define SESSION_DURATION_MS     15000UL   // Session usage screen
+#define WEEKLY_DURATION_MS      15000UL   // Weekly usage screen
 
+// --------------- Animation Frame Timing ---------------
+#define ANIM_FRAME_DELAY_MS     100       // 10 FPS frame rate
+#define TYPING_CHAR_DELAY_MS    80        // ms per character typed
+#define TYPING_ERASE_DELAY_MS   50        // ms per character erased
+#define TYPING_PAUSE_MS         2000      // pause after fully typed
+
+// --------------- API / Network Timing ---------------
 #define API_POLL_INTERVAL_MS        60000UL   // API poll every 60 seconds
-#define SCREEN_ROTATE_INTERVAL_MS   10000UL   // Auto-rotate screens every 10 seconds
-#define DISPLAY_DIM_TIMEOUT_MS      300000UL  // Auto-dim after 5 minutes (no data change)
-
+#define DISPLAY_DIM_TIMEOUT_MS      300000UL  // Auto-dim after 5 minutes
 #define WIFI_CONNECT_TIMEOUT_S      180       // WiFi connection timeout: 3 minutes
 #define DEEP_SLEEP_NO_WIFI_MS       300000UL  // Deep sleep if no WiFi for 5 minutes
 
@@ -43,11 +50,6 @@
 #define DEFAULT_API_URL             "https://api.example.com/usage"
 #define DEFAULT_API_KEY             ""
 
-// --------------- Display Screens ---------------
-#define SCREEN_COUNT                2
-#define SCREEN_USAGE                0
-#define SCREEN_COST                 1
-
 // --------------- Progress Bar ---------------
 #define PROGRESS_BAR_WIDTH          108  // pixels
-#define PROGRESS_BAR_HEIGHT         6    // pixels
+#define PROGRESS_BAR_HEIGHT         8    // pixels (taller for new screens)

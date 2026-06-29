@@ -18,19 +18,33 @@ WifiSetupManager wifiMgr;
 ApiClient        apiClient;
 AnimationManager* anim = nullptr;  // Allocated after display.begin()
 
-// --------------- State ---------------
-static uint32_t lastApiPoll       = 0;
-static uint32_t lastScreenRotate  = 0;
-static uint32_t lastDataChange    = 0;   // for auto-dim
-static uint32_t noWifiSince       = 0;   // for deep-sleep timer
-static bool     wifiWasConnected  = false;
-static bool     dimmed            = false;
+// --------------- State Machine ---------------
+enum CycleState {
+    FACE_ANIM_1,    //  0-5s:  face animation (blocking)
+    STATUS_SCREEN,  //  5-20s: CLI status screen
+    FACE_ANIM_2,    // 20-25s: face animation
+    SESSION_SCREEN, // 25-40s: session usage
+    FACE_ANIM_3,    // 40-45s: face animation
+    WEEKLY_SCREEN,  // 45-60s: weekly usage
+};
+
+static CycleState cycleState    = FACE_ANIM_1;
+static uint32_t   stateEnteredAt = 0;
+
+// --------------- Other state ---------------
+static uint32_t lastApiPoll      = 0;
+static uint32_t lastDataChange   = 0;
+static uint32_t noWifiSince      = 0;
+static bool     wifiWasConnected = false;
+static bool     dimmed           = false;
 
 // --------------- Forward declarations ---------------
 void pollApi();
 void checkDimming();
 void checkDeepSleep();
 void enterDeepSleep();
+void enterState(CycleState s);
+CycleState nextCycleState(CycleState s);
 
 // ============================================================
 // setup()
@@ -40,51 +54,50 @@ void setup() {
     delay(200);
     Serial.println("\n[Main] ESP32 Claude Companion starting...");
 
-    // --- Watchdog: 60 seconds (covers 30s boot animations + portal margin) ---
+    // Watchdog: 30 seconds (covers WiFi setup)
     esp_task_wdt_config_t wdtCfg = {
-        .timeout_ms     = 60000,
+        .timeout_ms     = 30000,
         .idle_core_mask = 0,
         .trigger_panic  = true,
     };
     esp_task_wdt_reconfigure(&wdtCfg);
     esp_task_wdt_add(NULL);
 
-    // --- Wake button (GPIO0) as input ---
+    // Wake button (GPIO0) as input
     pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);
 
-    // --- Init display ---
+    // Init display
     if (!display.begin()) {
         Serial.println("[Main] Display init FAILED — halting");
         while (true) { delay(1000); }
     }
 
-    // --- Boot animations ---
-    // We run them before WiFi so the typing animation plays immediately.
-    // The connecting animation will poll WiFi.status() internally.
+    // Allocate animation manager
     anim = new AnimationManager(display.getDisplay());
 
-    bool wifiConnectedDuringAnim = false;
-
-    // Kick off WiFi connection attempt in background before animations start.
-    // WiFiManager will autoConnect; we run animations while it tries.
-    // However, WiFiManager is blocking, so we start it after the first animation.
-
-    // Start WiFi non-blocking using saved credentials from NVS.
-    // The connecting animation (animation 2) will poll WiFi.status()
-    // internally and show a checkmark when the connection succeeds.
-    // If credentials are not saved, WiFiManager portal runs after animations.
+    // Attempt WiFi with saved credentials (non-blocking start)
     Serial.println("[Main] Attempting WiFi with saved credentials...");
     WiFi.mode(WIFI_STA);
-    WiFi.begin(); // Use saved credentials from NVS
+    WiFi.begin(); // use saved credentials from NVS
 
-    // Run both animations while WiFi tries to connect in background
-    Serial.println("[Main] Running boot animations...");
-    esp_task_wdt_reset();
-    anim->runBootAnimations(wifiConnectedDuringAnim);
-    esp_task_wdt_reset();
+    // Show connecting message while WiFi tries
+    display.getDisplay().clearDisplay();
+    display.getDisplay().setTextSize(1);
+    display.getDisplay().setCursor(0, 10);
+    display.getDisplay().print("Connecting to WiFi...");
+    display.getDisplay().display();
 
-    // If WiFi didn't connect during animations, use WiFiManager portal
-    if (!wifiConnectedDuringAnim && WiFi.status() != WL_CONNECTED) {
+    // Wait up to 10 seconds for quick connect
+    uint32_t wifiStart = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - wifiStart < 10000UL) {
+        esp_task_wdt_reset();
+        delay(200);
+    }
+
+    bool quickConnect = (WiFi.status() == WL_CONNECTED);
+
+    // If quick connect failed, use WiFiManager portal
+    if (!quickConnect) {
         Serial.println("[Main] No saved WiFi — starting WiFiManager portal...");
 
         display.getDisplay().clearDisplay();
@@ -111,14 +124,14 @@ void setup() {
             Serial.println("[Main] WiFi portal timed out");
         }
     } else {
-        // WiFi connected during animation — still load config from NVS
+        // Load config from NVS
         wifiMgr.begin(nullptr);
     }
 
-    // Configure API client with stored endpoint + key
+    // Configure API client
     apiClient.setEndpoint(wifiMgr.getApiUrl(), wifiMgr.getApiKey());
 
-    // Update display WiFi status
+    // Update WiFi status in display
     bool connected = wifiMgr.isConnected();
     display.setWifiStatus(connected, connected ? wifiMgr.getRssi() : 0);
     if (connected) {
@@ -137,18 +150,26 @@ void setup() {
         display.setError("No WiFi");
     }
 
-    display.render();
+    // Expand watchdog for face animation cycles (10s margin)
+    esp_task_wdt_config_t wdtLong = {
+        .timeout_ms     = 15000,
+        .idle_core_mask = 0,
+        .trigger_panic  = true,
+    };
+    esp_task_wdt_reconfigure(&wdtLong);
 
-    lastApiPoll      = millis();
-    lastScreenRotate = millis();
-    lastDataChange   = millis();
+    lastApiPoll    = millis();
+    lastDataChange = millis();
+
+    // Enter first state
+    enterState(FACE_ANIM_1);
 
     Serial.println("[Main] Setup complete. Entering main loop.");
     esp_task_wdt_reset();
 }
 
 // ============================================================
-// loop()
+// loop() — 60-second cycle state machine
 // ============================================================
 void loop() {
     esp_task_wdt_reset();
@@ -168,29 +189,68 @@ void loop() {
             noWifiSince = 0;
             display.clearError();
         }
-        display.render();
     }
 
-    // Update RSSI icon periodically (every 5 seconds when connected)
+    // Update RSSI every 5 seconds when connected
     static uint32_t lastRssiUpdate = 0;
     if (connected && now - lastRssiUpdate > 5000UL) {
         display.setWifiStatus(true, wifiMgr.getRssi());
         lastRssiUpdate = now;
     }
 
-    // --- API poll on interval ---
-    if (now - lastApiPoll >= API_POLL_INTERVAL_MS) {
-        lastApiPoll = now;
-        if (connected) {
-            pollApi();
-        }
-    }
+    // --- State machine ---
+    switch (cycleState) {
 
-    // --- Auto-rotate screens ---
-    if (now - lastScreenRotate >= SCREEN_ROTATE_INTERVAL_MS) {
-        lastScreenRotate = now;
-        display.nextScreen();
-        display.render();
+        case FACE_ANIM_1:
+        case FACE_ANIM_2:
+        case FACE_ANIM_3: {
+            // Face animation is blocking (~5s). Run it and immediately advance.
+            esp_task_wdt_reset();
+            anim->playFaceCycle();
+            esp_task_wdt_reset();
+            enterState(nextCycleState(cycleState));
+            break;
+        }
+
+        case STATUS_SCREEN: {
+            display.setScreen(SCREEN_STATUS);
+            display.render();
+            delay(50);
+
+            if (now - stateEnteredAt >= STATUS_DURATION_MS) {
+                // API poll once per 60-second cycle (at end of status screen)
+                if (connected) {
+                    if (now - lastApiPoll >= API_POLL_INTERVAL_MS) {
+                        lastApiPoll = now;
+                        pollApi();
+                    }
+                }
+                enterState(nextCycleState(cycleState));
+            }
+            break;
+        }
+
+        case SESSION_SCREEN: {
+            display.setScreen(SCREEN_SESSION);
+            display.render();
+            delay(50);
+
+            if (now - stateEnteredAt >= SESSION_DURATION_MS) {
+                enterState(nextCycleState(cycleState));
+            }
+            break;
+        }
+
+        case WEEKLY_SCREEN: {
+            display.setScreen(SCREEN_WEEKLY);
+            display.render();
+            delay(50);
+
+            if (now - stateEnteredAt >= WEEKLY_DURATION_MS) {
+                enterState(nextCycleState(cycleState));
+            }
+            break;
+        }
     }
 
     // --- Auto-dim check ---
@@ -198,9 +258,28 @@ void loop() {
 
     // --- Deep sleep check (no WiFi for 5 minutes) ---
     checkDeepSleep();
+}
 
-    // Small yield to prevent watchdog starvation
-    delay(50);
+// ============================================================
+// State helpers
+// ============================================================
+void enterState(CycleState s) {
+    cycleState     = s;
+    stateEnteredAt = millis();
+    Serial.print("[Main] -> State: ");
+    Serial.println((int)s);
+}
+
+CycleState nextCycleState(CycleState s) {
+    switch (s) {
+        case FACE_ANIM_1:    return STATUS_SCREEN;
+        case STATUS_SCREEN:  return FACE_ANIM_2;
+        case FACE_ANIM_2:    return SESSION_SCREEN;
+        case SESSION_SCREEN: return FACE_ANIM_3;
+        case FACE_ANIM_3:    return WEEKLY_SCREEN;
+        case WEEKLY_SCREEN:  return FACE_ANIM_1;
+        default:             return FACE_ANIM_1;
+    }
 }
 
 // ============================================================
@@ -222,8 +301,6 @@ void pollApi() {
         Serial.print("[Main] API error: ");
         Serial.println(err);
     }
-
-    display.render();
 }
 
 // ============================================================
@@ -249,7 +326,7 @@ void checkDimming() {
 // ============================================================
 void checkDeepSleep() {
     if (wifiMgr.isConnected()) {
-        noWifiSince = 0; // reset timer
+        noWifiSince = 0;
         return;
     }
 
@@ -269,7 +346,6 @@ void checkDeepSleep() {
 // enterDeepSleep() — deep sleep, wake on GPIO0 (BOOT button)
 // ============================================================
 void enterDeepSleep() {
-    // Show sleep message
     display.getDisplay().clearDisplay();
     display.getDisplay().setTextSize(1);
     display.getDisplay().setCursor(10, 20);
@@ -279,15 +355,12 @@ void enterDeepSleep() {
     display.getDisplay().display();
     delay(1500);
 
-    // Turn off display
     display.getDisplay().ssd1306_command(SSD1306_DISPLAYOFF);
 
-    // Configure GPIO0 as external wake source (LOW = button pressed)
     esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_BUTTON_PIN, 0);
 
     Serial.println("[Main] Entering deep sleep. Wake on GPIO0.");
     Serial.flush();
 
     esp_deep_sleep_start();
-    // Does not return
 }
