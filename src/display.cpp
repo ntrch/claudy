@@ -8,13 +8,13 @@
 
 // --------------- Demo messages for CLI typing effect ---------------
 static const char* const kTypingMessages[] = {
-    "fixing auth bug in login flow",
-    "refactoring database queries",
-    "writing unit tests",
-    "reviewing pull request #42",
-    "optimizing API endpoints",
-    "updating documentation",
-    "deploying to staging",
+    "coding auth flow",
+    "debugging api client",
+    "writing tests",
+    "reviewing PR #42",
+    "refactoring queries",
+    "updating docs",
+    "deploying staging",
 };
 static const uint8_t kTypingMessageCount = 7;
 
@@ -135,38 +135,30 @@ void DisplayManager::render() {
 // Screen 0: CLI Status Screen — terminal frame with typing effect
 // ============================================================
 void DisplayManager::renderStatusScreen() {
-    // --- Terminal window frame ---
-    _display.drawRect(0, 0, 128, 64, SSD1306_WHITE);
-
-    // Title bar separator line at y=10
-    _display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
-
-    // "claudy" title in top-left inside frame
+    // --- Top: status text, no frame ---
     _display.setTextSize(1);
-    _display.setCursor(4, 2);
-    _display.print("claudy");
-
-    // WiFi icon inside title bar (top-right, within border)
-    drawWifiIcon(112, 1, _wifiConnected, _wifiRssi);
-
-    // --- Status line: "*running" (or whatever status) ---
-    _display.setCursor(4, 13);
-    _display.setTextSize(1);
+    _display.setCursor(0, 0);
     _display.print("*");
     String statusStr = (_data.status.length() > 0) ? _data.status : "idle";
     _display.print(statusStr);
 
-    // --- Typing effect line ---
-    updateTyping();
+    // WiFi icon top-right
+    drawWifiIcon(116, 0, _wifiConnected, _wifiRssi);
 
+    // --- Middle: framed typing area ---
+    const int boxY = 16;
+    const int boxH = 32;
+    _display.drawRect(0, boxY, 128, boxH, SSD1306_WHITE);
+
+    // Typing effect inside the frame
+    updateTyping();
     String typedText = getCurrentTypingText();
 
-    // Show cursor blink — toggle every 500ms
-    bool showCursor = _typing.cursorVisible && !_typing.erasing;
+    bool showCursor = _typing.cursorVisible;
 
-    _display.setCursor(4, 28);
+    _display.setCursor(4, boxY + 8);
     _display.setTextSize(1);
-    _display.print("> ");
+    _display.print("> /");
     _display.print(typedText);
     if (showCursor) {
         _display.print("_");
