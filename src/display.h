@@ -7,7 +7,7 @@
 
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+#include <Adafruit_SH110X.h>
 #include "config.h"
 
 // --------------- Usage Data Structure ---------------
@@ -86,10 +86,10 @@ public:
     bool isDimmed() const { return _dimmed; }
 
     // Raw access for animations
-    Adafruit_SSD1306& getDisplay() { return _display; }
+    Adafruit_SH1106G& getDisplay() { return _display; }
 
 private:
-    Adafruit_SSD1306 _display;
+    Adafruit_SH1106G _display;
     UsageData        _data;
     uint8_t          _currentScreen;
     bool             _wifiConnected;

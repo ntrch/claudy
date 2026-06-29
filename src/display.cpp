@@ -43,16 +43,16 @@ DisplayManager::DisplayManager()
 bool DisplayManager::begin() {
     Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
 
-    if (!_display.begin(SSD1306_SWITCHCAPVCC, OLED_I2C_ADDRESS)) {
-        Serial.println("[Display] SSD1306 init FAILED");
+    if (!_display.begin(OLED_I2C_ADDRESS, true)) {
+        Serial.println("[Display] SH1106 init FAILED");
         return false;
     }
 
     _display.clearDisplay();
-    _display.setTextColor(SSD1306_WHITE);
+    _display.setTextColor(SH110X_WHITE);
     _display.setTextSize(1);
     _display.display();
-    Serial.println("[Display] SSD1306 init OK");
+    Serial.println("[Display] SH1106 init OK");
     return true;
 }
 
@@ -99,8 +99,8 @@ void DisplayManager::clearError() {
 // --------------- Dimming ---------------
 void DisplayManager::setDimmed(bool dimmed) {
     _dimmed = dimmed;
-    _display.ssd1306_command(dimmed ? 0x81 : 0xCF);
-    _display.ssd1306_command(dimmed ? 0x10 : 0xFF);
+    _display.oled_command(dimmed ? 0x81 : 0xCF);
+    _display.oled_command(dimmed ? 0x10 : 0xFF);
 }
 
 // --------------- Main render dispatcher ---------------
@@ -140,7 +140,7 @@ void DisplayManager::renderStatusScreen() {
     // --- Middle: framed typing area ---
     const int boxY = 16;
     const int boxH = 32;
-    _display.drawRect(0, boxY, 128, boxH, SSD1306_WHITE);
+    _display.drawRect(0, boxY, 128, boxH, SH110X_WHITE);
 
     // Typing effect inside the frame
     updateTyping();
@@ -166,7 +166,7 @@ void DisplayManager::renderSessionScreen() {
     _display.setCursor(0, 1);
     _display.print("Session Usage");
     drawWifiIcon(116, 1, _wifiConnected, _wifiRssi);
-    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SSD1306_WHITE);
+    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SH110X_WHITE);
 
     // Usage numbers: e.g. "45 / 100 %" or "150 / 500 req"
     _display.setCursor(0, 13);
@@ -201,7 +201,7 @@ void DisplayManager::renderWeeklyScreen() {
     _display.setCursor(0, 1);
     _display.print("Weekly Usage");
     drawWifiIcon(116, 1, _wifiConnected, _wifiRssi);
-    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SSD1306_WHITE);
+    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SH110X_WHITE);
 
     // Usage numbers
     _display.setCursor(0, 13);
@@ -239,7 +239,7 @@ void DisplayManager::renderErrorScreen() {
     _display.setTextSize(1);
     _display.setCursor(0, 1);
     _display.print("CLAUDY");
-    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SSD1306_WHITE);
+    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SH110X_WHITE);
 
     _display.setCursor(0, 14);
     _display.print("! ERROR !");
@@ -262,7 +262,7 @@ void DisplayManager::renderNoDataScreen() {
     _display.setTextSize(1);
     _display.setCursor(0, 1);
     _display.print("CLAUDY");
-    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SSD1306_WHITE);
+    _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SH110X_WHITE);
 
     _display.setCursor(20, 28);
     _display.print("Fetching data...");
@@ -273,19 +273,19 @@ void DisplayManager::renderNoDataScreen() {
 // ============================================================
 
 void DisplayManager::drawProgressBar(int x, int y, int w, int h, float pct) {
-    _display.drawRect(x, y, w, h, SSD1306_WHITE);
+    _display.drawRect(x, y, w, h, SH110X_WHITE);
     int fillW = (int)((w - 2) * pct);
     if (fillW < 0) fillW = 0;
     if (fillW > w - 2) fillW = w - 2;
     if (fillW > 0) {
-        _display.fillRect(x + 1, y + 1, fillW, h - 2, SSD1306_WHITE);
+        _display.fillRect(x + 1, y + 1, fillW, h - 2, SH110X_WHITE);
     }
 }
 
 void DisplayManager::drawWifiIcon(int x, int y, bool connected, int rssi) {
     if (!connected) {
-        _display.drawLine(x, y, x + 4, y + 4, SSD1306_WHITE);
-        _display.drawLine(x + 4, y, x, y + 4, SSD1306_WHITE);
+        _display.drawLine(x, y, x + 4, y + 4, SH110X_WHITE);
+        _display.drawLine(x + 4, y, x, y + 4, SH110X_WHITE);
         return;
     }
 
@@ -305,9 +305,9 @@ void DisplayManager::drawWifiIcon(int x, int y, bool connected, int rssi) {
         int bh = barHeights[i];
         int by = y + 9 - bh;
         if (i < level) {
-            _display.fillRect(bx, by, barW, bh, SSD1306_WHITE);
+            _display.fillRect(bx, by, barW, bh, SH110X_WHITE);
         } else {
-            _display.drawRect(bx, by, barW, bh, SSD1306_WHITE);
+            _display.drawRect(bx, by, barW, bh, SH110X_WHITE);
         }
     }
 }

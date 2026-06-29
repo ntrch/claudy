@@ -8,7 +8,7 @@
 #include "anim_blink.h"
 
 // --------------- Constructor ---------------
-AnimationManager::AnimationManager(Adafruit_SSD1306& display)
+AnimationManager::AnimationManager(Adafruit_SH1106G& display)
     : _display(display)
 {}
 
@@ -34,6 +34,6 @@ void AnimationManager::playFaceCycle() {
 // --------------- Private: draw a single PROGMEM bitmap frame ---------------
 void AnimationManager::drawFrame(const unsigned char* frame) {
     _display.clearDisplay();
-    _display.drawBitmap(0, 0, frame, OLED_SCREEN_WIDTH, OLED_SCREEN_HEIGHT, SSD1306_WHITE);
+    _display.drawBitmap(0, 0, frame, OLED_SCREEN_WIDTH, OLED_SCREEN_HEIGHT, SH110X_WHITE);
     _display.display();
 }

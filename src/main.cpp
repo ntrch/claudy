@@ -4,7 +4,6 @@
 // ============================================================
 
 #include <Arduino.h>
-#include <esp_task_wdt.h>
 #include <WiFi.h>
 #include "config.h"
 #include "display.h"
@@ -54,10 +53,6 @@ void setup() {
     delay(200);
     Serial.println("\n[Main] ESP32 Claude Companion starting...");
 
-    // Watchdog: 30 seconds (covers WiFi setup)
-    esp_task_wdt_init(30, true);
-    esp_task_wdt_add(NULL);
-
     // Wake button (GPIO0) as input
     pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);
 
@@ -85,7 +80,6 @@ void setup() {
     // Wait up to 10 seconds for quick connect
     uint32_t wifiStart = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - wifiStart < 10000UL) {
-        esp_task_wdt_reset();
         delay(200);
     }
 
@@ -107,7 +101,6 @@ void setup() {
         display.getDisplay().print("  192.168.4.1");
         display.getDisplay().display();
 
-        esp_task_wdt_reset();
         bool ok = wifiMgr.begin([](const String& msg) {
             Serial.print("[WiFi] Status: ");
             Serial.println(msg);
@@ -137,18 +130,12 @@ void setup() {
     }
 
     // Initial API poll
-    esp_task_wdt_reset();
     if (connected) {
         Serial.println("[Main] Initial API fetch...");
         pollApi();
     } else {
         display.setError("No WiFi");
     }
-
-    // Expand watchdog for face animation cycles
-    esp_task_wdt_deinit();
-    esp_task_wdt_init(15, true);
-    esp_task_wdt_add(NULL);
 
     lastApiPoll    = millis();
     lastDataChange = millis();
@@ -157,14 +144,12 @@ void setup() {
     enterState(FACE_ANIM_1);
 
     Serial.println("[Main] Setup complete. Entering main loop.");
-    esp_task_wdt_reset();
 }
 
 // ============================================================
 // loop() — 60-second cycle state machine
 // ============================================================
 void loop() {
-    esp_task_wdt_reset();
     uint32_t now = millis();
 
     // --- Maintain WiFi ---
@@ -197,9 +182,7 @@ void loop() {
         case FACE_ANIM_2:
         case FACE_ANIM_3: {
             // Face animation is blocking (~5s). Run it and immediately advance.
-            esp_task_wdt_reset();
             anim->playFaceCycle();
-            esp_task_wdt_reset();
             enterState(nextCycleState(cycleState));
             break;
         }
@@ -347,7 +330,7 @@ void enterDeepSleep() {
     display.getDisplay().display();
     delay(1500);
 
-    display.getDisplay().ssd1306_command(SSD1306_DISPLAYOFF);
+    display.getDisplay().oled_command(SH110X_DISPLAYOFF);
 
     esp_sleep_enable_ext0_wakeup((gpio_num_t)WAKE_BUTTON_PIN, 0);
 
