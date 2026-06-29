@@ -133,30 +133,26 @@ void DisplayManager::render() {
 void DisplayManager::renderStatusScreen() {
     _u8g2.setFont(u8g2_font_6x10_tr);
 
-    // --- Top: status text, no frame ---
-    // y is baseline in U8g2; y=8 puts text at top of screen
+    // Status text at safe area
     char statusBuf[32];
     String statusStr = (_data.status.length() > 0) ? _data.status : "idle";
     snprintf(statusBuf, sizeof(statusBuf), "*%s", statusStr.c_str());
-    _u8g2.drawStr(0, 8, statusBuf);
+    _u8g2.drawStr(0, 40, statusBuf);
 
-    // WiFi icon top-right
-    drawWifiIcon(116, 0, _wifiConnected, _wifiRssi);
+    drawWifiIcon(116, 32, _wifiConnected, _wifiRssi);
 
-    // --- Middle: framed typing area ---
-    const int boxY = 16;
-    const int boxH = 32;
+    // Framed typing area
+    const int boxY = 44;
+    const int boxH = 20;
     _u8g2.drawFrame(0, boxY, 128, boxH);
 
-    // Typing effect inside the frame
     updateTyping();
     String typedText = getCurrentTypingText();
     bool showCursor = _typing.cursorVisible;
 
     String line = "> /" + typedText;
     if (showCursor) line += "_";
-    // y = boxY + 20 puts baseline roughly centered in the frame
-    _u8g2.drawStr(4, boxY + 20, line.c_str());
+    _u8g2.drawStr(4, boxY + 14, line.c_str());
 }
 
 // ============================================================
@@ -165,30 +161,26 @@ void DisplayManager::renderStatusScreen() {
 void DisplayManager::renderSessionScreen() {
     _u8g2.setFont(u8g2_font_6x10_tr);
 
-    // Header (y=8 = baseline at top)
-    _u8g2.drawStr(0, 8, "Session Usage");
-    drawWifiIcon(116, 0, _wifiConnected, _wifiRssi);
-    _u8g2.drawHLine(0, 10, 128);
+    // Header
+    _u8g2.drawStr(0, 38, "Session Usage");
+    drawWifiIcon(116, 30, _wifiConnected, _wifiRssi);
+    _u8g2.drawHLine(0, 40, 128);
 
-    // Usage numbers: e.g. "45 / 100 %" or "150 / 500 req"
+    // Usage numbers
     char usageBuf[32];
     snprintf(usageBuf, sizeof(usageBuf), "%d / %d %s",
              _data.sessionUsed, _data.sessionLimit,
              _data.sessionUnit.c_str());
-    _u8g2.drawStr(0, 22, usageBuf);
+    _u8g2.drawStr(0, 52, usageBuf);
 
     // Progress bar
     float pct = safePercent(_data.sessionUsed, _data.sessionLimit);
-    drawProgressBar(0, 26, PROGRESS_BAR_WIDTH, 8, pct);
+    drawProgressBar(0, 54, PROGRESS_BAR_WIDTH, 6, pct);
 
-    // Percentage right of bar (baseline at y=34 aligns with bar)
+    // Percentage right of bar
     char pctBuf[6];
     snprintf(pctBuf, sizeof(pctBuf), "%2d%%", (int)(pct * 100));
-    _u8g2.drawStr(PROGRESS_BAR_WIDTH + 2, 34, pctBuf);
-
-    // Reset time
-    String resetStr = "Resets: " + formatTimeUntil(_data.resetSession);
-    _u8g2.drawStr(0, 48, resetStr.c_str());
+    _u8g2.drawStr(PROGRESS_BAR_WIDTH + 2, 60, pctBuf);
 }
 
 // ============================================================
@@ -198,68 +190,48 @@ void DisplayManager::renderWeeklyScreen() {
     _u8g2.setFont(u8g2_font_6x10_tr);
 
     // Header
-    _u8g2.drawStr(0, 8, "Weekly Usage");
-    drawWifiIcon(116, 0, _wifiConnected, _wifiRssi);
-    _u8g2.drawHLine(0, 10, 128);
+    _u8g2.drawStr(0, 38, "Weekly Usage");
+    drawWifiIcon(116, 30, _wifiConnected, _wifiRssi);
+    _u8g2.drawHLine(0, 40, 128);
 
     // Usage numbers
     char usageBuf[32];
     snprintf(usageBuf, sizeof(usageBuf), "%d / %d %s",
              _data.weeklyUsed, _data.weeklyLimit,
              _data.weeklyUnit.c_str());
-    _u8g2.drawStr(0, 22, usageBuf);
+    _u8g2.drawStr(0, 52, usageBuf);
 
     // Progress bar
     float pct = safePercent(_data.weeklyUsed, _data.weeklyLimit);
-    drawProgressBar(0, 26, PROGRESS_BAR_WIDTH, 8, pct);
+    drawProgressBar(0, 54, PROGRESS_BAR_WIDTH, 6, pct);
 
     char pctBuf[6];
     snprintf(pctBuf, sizeof(pctBuf), "%2d%%", (int)(pct * 100));
-    _u8g2.drawStr(PROGRESS_BAR_WIDTH + 2, 34, pctBuf);
-
-    // Weekly reset
-    String wr = _data.resetWeekly;
-    if (wr.length() >= 16) {
-        String datePart = wr.substring(5, 10);   // "MM-DD"
-        String timePart = wr.substring(11, 16);  // "HH:MM"
-        String resetStr = "Resets: " + datePart + " " + timePart;
-        _u8g2.drawStr(0, 48, resetStr.c_str());
-    } else {
-        _u8g2.drawStr(0, 48, "Resets: --/-- --:--");
-    }
+    _u8g2.drawStr(PROGRESS_BAR_WIDTH + 2, 60, pctBuf);
 }
 
 // --------------- Error Screen ---------------
 void DisplayManager::renderErrorScreen() {
     _u8g2.setFont(u8g2_font_6x10_tr);
 
-    _u8g2.drawStr(0, 8, "CLAUDY");
-    _u8g2.drawHLine(0, 10, 128);
-
-    _u8g2.drawStr(0, 22, "! ERROR !");
+    _u8g2.drawStr(0, 38, "! ERROR !");
+    _u8g2.drawHLine(0, 40, 128);
 
     String msg = _errorMsg;
-    if (msg.length() > 42) msg = msg.substring(0, 42);
-    char line1[22];
-    char line2[22];
-    snprintf(line1, sizeof(line1), "%s", msg.substring(0, 21).c_str());
-    _u8g2.drawStr(0, 34, line1);
-    if (msg.length() > 21) {
-        snprintf(line2, sizeof(line2), "%s", msg.substring(21).c_str());
-        _u8g2.drawStr(0, 44, line2);
-    }
+    if (msg.length() > 21) msg = msg.substring(0, 21);
+    _u8g2.drawStr(0, 52, msg.c_str());
 
-    _u8g2.drawStr(0, 60, "Retrying...");
+    _u8g2.drawStr(0, 63, "Retrying...");
 }
 
 // --------------- No Data Screen ---------------
 void DisplayManager::renderNoDataScreen() {
     _u8g2.setFont(u8g2_font_6x10_tr);
 
-    _u8g2.drawStr(0, 8, "CLAUDY");
-    _u8g2.drawHLine(0, 10, 128);
+    _u8g2.drawStr(0, 38, "CLAUDY");
+    _u8g2.drawHLine(0, 40, 128);
 
-    _u8g2.drawStr(20, 36, "Fetching data...");
+    _u8g2.drawStr(20, 54, "Fetching data...");
 }
 
 // ============================================================

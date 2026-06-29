@@ -64,7 +64,7 @@ void setup() {
         display.begin();
         display.getU8g2().clearBuffer();
         display.getU8g2().setFont(u8g2_font_6x10_tr);
-        display.getU8g2().drawStr(10, 30, "Factory Reset...");
+        display.getU8g2().drawStr(10, 50, "Factory Reset...");
         display.getU8g2().sendBuffer();
         wifiMgr.resetConfig(); // clears NVS + WiFi, restarts ESP
         // resetConfig calls ESP.restart(), won't reach here
@@ -87,7 +87,7 @@ void setup() {
     // Show connecting message while WiFi tries
     display.getU8g2().clearBuffer();
     display.getU8g2().setFont(u8g2_font_6x10_tr);
-    display.getU8g2().drawStr(0, 18, "Connecting to WiFi...");
+    display.getU8g2().drawStr(0, 50, "Connecting WiFi...");
     display.getU8g2().sendBuffer();
 
     // Wait up to 10 seconds for quick connect
@@ -104,10 +104,9 @@ void setup() {
 
         display.getU8g2().clearBuffer();
         display.getU8g2().setFont(u8g2_font_6x10_tr);
-        display.getU8g2().drawStr(0, 18, "Connect to WiFi AP:");
-        display.getU8g2().drawStr(0, 30, "  Claudy-Setup");
-        display.getU8g2().drawStr(0, 46, "Then visit:");
-        display.getU8g2().drawStr(0, 58, "  192.168.4.1");
+        display.getU8g2().drawStr(0, 38, "WiFi AP: Claudy-Setup");
+        display.getU8g2().drawStr(0, 52, "Visit:");
+        display.getU8g2().drawStr(0, 63, "  192.168.4.1");
         display.getU8g2().sendBuffer();
 
         bool ok = wifiMgr.begin([](const String& msg) {
@@ -344,8 +343,8 @@ void checkDeepSleep() {
 void enterDeepSleep() {
     display.getU8g2().clearBuffer();
     display.getU8g2().setFont(u8g2_font_6x10_tr);
-    display.getU8g2().drawStr(10, 28, "Sleeping...");
-    display.getU8g2().drawStr(0, 42, "Press BOOT to wake");
+    display.getU8g2().drawStr(10, 48, "Sleeping...");
+    display.getU8g2().drawStr(0, 60, "Press BOOT to wake");
     display.getU8g2().sendBuffer();
     delay(1500);
 
