@@ -77,6 +77,7 @@ bool ApiClient::refreshOAuthToken() {
     secureClient.setInsecure();
 
     HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     if (!http.begin(secureClient, OAUTH_REFRESH_URL)) {
         Serial.println("[API] OAuth refresh HTTP begin failed");
         return false;
@@ -147,12 +148,13 @@ ApiResult ApiClient::fetchUsage(UsageData& outData) {
     secureClient.setInsecure(); // Skip certificate verification for simplicity
 
     HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     if (!http.begin(secureClient, ANTHROPIC_API_URL)) {
         _lastError = "HTTP begin failed";
         return ApiResult::ERR_HTTP_CONNECT;
     }
 
-    http.setTimeout(15000); // 15 second timeout
+    http.setTimeout(15000);
     http.addHeader("Content-Type", "application/json");
     http.addHeader("anthropic-version", ANTHROPIC_API_VERSION);
 
