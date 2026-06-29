@@ -117,10 +117,12 @@ void DisplayManager::render() {
         renderNoDataScreen();
     } else {
         switch (_currentScreen) {
-            case SCREEN_STATUS:  renderStatusScreen();  break;
-            case SCREEN_SESSION: renderSessionScreen(); break;
-            case SCREEN_WEEKLY:  renderWeeklyScreen();  break;
-            default:             renderStatusScreen();  break;
+            case SCREEN_STATUS:        renderStatusScreen();       break;
+            case SCREEN_SESSION:       renderSessionScreen();      break;
+            case SCREEN_SESSION_RESET: renderSessionResetScreen(); break;
+            case SCREEN_WEEKLY:        renderWeeklyScreen();       break;
+            case SCREEN_WEEKLY_RESET:  renderWeeklyResetScreen();  break;
+            default:                   renderStatusScreen();       break;
         }
     }
 
@@ -184,7 +186,21 @@ void DisplayManager::renderSessionScreen() {
 }
 
 // ============================================================
-// Screen 2: Weekly Usage Screen
+// Screen 2: Session Reset-Time Screen
+// ============================================================
+void DisplayManager::renderSessionResetScreen() {
+    _u8g2.setFont(u8g2_font_6x10_tr);
+
+    _u8g2.drawStr(0, 38, "Session Reset");
+    drawWifiIcon(116, 30, _wifiConnected, _wifiRssi);
+    _u8g2.drawHLine(0, 40, 128);
+
+    String t = formatTimeUntil(_data.resetSession);
+    _u8g2.drawStr(0, 56, t.c_str());
+}
+
+// ============================================================
+// Screen 3: Weekly Usage Screen
 // ============================================================
 void DisplayManager::renderWeeklyScreen() {
     _u8g2.setFont(u8g2_font_6x10_tr);
@@ -208,6 +224,20 @@ void DisplayManager::renderWeeklyScreen() {
     char pctBuf[6];
     snprintf(pctBuf, sizeof(pctBuf), "%2d%%", (int)(pct * 100));
     _u8g2.drawStr(PROGRESS_BAR_WIDTH + 2, 60, pctBuf);
+}
+
+// ============================================================
+// Screen 4: Weekly Reset-Time Screen
+// ============================================================
+void DisplayManager::renderWeeklyResetScreen() {
+    _u8g2.setFont(u8g2_font_6x10_tr);
+
+    _u8g2.drawStr(0, 38, "Weekly Reset");
+    drawWifiIcon(116, 30, _wifiConnected, _wifiRssi);
+    _u8g2.drawHLine(0, 40, 128);
+
+    String t = formatTimeUntil(_data.resetWeekly);
+    _u8g2.drawStr(0, 56, t.c_str());
 }
 
 // --------------- Error Screen ---------------

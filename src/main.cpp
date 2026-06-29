@@ -19,15 +19,15 @@ AnimationManager* anim = nullptr;  // Allocated after display.begin()
 
 // --------------- State Machine ---------------
 enum CycleState {
-    FACE_ANIM_1,    //  0-5s:  face animation (blocking)
-    STATUS_SCREEN,  //  5-20s: CLI status screen
-    FACE_ANIM_2,    // 20-25s: face animation
-    SESSION_SCREEN, // 25-40s: session usage
-    FACE_ANIM_3,    // 40-45s: face animation
-    WEEKLY_SCREEN,  // 45-60s: weekly usage
+    FACE_ANIM,            //  0-5s:  face animation (4s idle + 1s blink)
+    STATUS_SCREEN,        //  5-20s: CLI status screen
+    SESSION_SCREEN,       // 20-30s: session usage (limit)
+    SESSION_RESET_SCREEN, // 30-40s: session reset time
+    WEEKLY_SCREEN,        // 40-50s: weekly usage (limit)
+    WEEKLY_RESET_SCREEN,  // 50-60s: weekly reset time
 };
 
-static CycleState cycleState    = FACE_ANIM_1;
+static CycleState cycleState    = FACE_ANIM;
 static uint32_t   stateEnteredAt = 0;
 
 // --------------- Other state ---------------
@@ -153,7 +153,7 @@ void setup() {
     lastDataChange = millis();
 
     // Enter first state
-    enterState(FACE_ANIM_1);
+    enterState(FACE_ANIM);
 
     Serial.println("[Main] Setup complete. Entering main loop.");
 }
@@ -190,9 +190,7 @@ void loop() {
     // --- State machine ---
     switch (cycleState) {
 
-        case FACE_ANIM_1:
-        case FACE_ANIM_2:
-        case FACE_ANIM_3: {
+        case FACE_ANIM: {
             // Face animation is blocking (~5s). Run it and immediately advance.
             anim->playFaceCycle();
             enterState(nextCycleState(cycleState));
@@ -228,12 +226,34 @@ void loop() {
             break;
         }
 
+        case SESSION_RESET_SCREEN: {
+            display.setScreen(SCREEN_SESSION_RESET);
+            display.render();
+            delay(50);
+
+            if (now - stateEnteredAt >= SESSION_RESET_DURATION_MS) {
+                enterState(nextCycleState(cycleState));
+            }
+            break;
+        }
+
         case WEEKLY_SCREEN: {
             display.setScreen(SCREEN_WEEKLY);
             display.render();
             delay(50);
 
             if (now - stateEnteredAt >= WEEKLY_DURATION_MS) {
+                enterState(nextCycleState(cycleState));
+            }
+            break;
+        }
+
+        case WEEKLY_RESET_SCREEN: {
+            display.setScreen(SCREEN_WEEKLY_RESET);
+            display.render();
+            delay(50);
+
+            if (now - stateEnteredAt >= WEEKLY_RESET_DURATION_MS) {
                 enterState(nextCycleState(cycleState));
             }
             break;
@@ -259,13 +279,13 @@ void enterState(CycleState s) {
 
 CycleState nextCycleState(CycleState s) {
     switch (s) {
-        case FACE_ANIM_1:    return STATUS_SCREEN;
-        case STATUS_SCREEN:  return FACE_ANIM_2;
-        case FACE_ANIM_2:    return SESSION_SCREEN;
-        case SESSION_SCREEN: return FACE_ANIM_3;
-        case FACE_ANIM_3:    return WEEKLY_SCREEN;
-        case WEEKLY_SCREEN:  return FACE_ANIM_1;
-        default:             return FACE_ANIM_1;
+        case FACE_ANIM:            return STATUS_SCREEN;
+        case STATUS_SCREEN:        return SESSION_SCREEN;
+        case SESSION_SCREEN:       return SESSION_RESET_SCREEN;
+        case SESSION_RESET_SCREEN: return WEEKLY_SCREEN;
+        case WEEKLY_SCREEN:        return WEEKLY_RESET_SCREEN;
+        case WEEKLY_RESET_SCREEN:  return FACE_ANIM;
+        default:                   return FACE_ANIM;
     }
 }
 

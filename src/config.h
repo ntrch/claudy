@@ -14,11 +14,15 @@
 #define OLED_RESET_PIN      -1   // Share Arduino reset pin
 
 // --------------- 60-Second Display Cycle Timing ---------------
-#define CYCLE_TOTAL_MS          60000UL   // Full cycle length
-#define FACE_ANIM_DURATION_MS   5000UL    // ~5s blocking face animation (50 frames @ 100ms)
-#define STATUS_DURATION_MS      15000UL   // CLI status screen
-#define SESSION_DURATION_MS     15000UL   // Session usage screen
-#define WEEKLY_DURATION_MS      15000UL   // Weekly usage screen
+// Cycle: 5s face + 15s status + 10s session + 10s session-reset
+//        + 10s weekly + 10s weekly-reset = 60s
+#define CYCLE_TOTAL_MS              60000UL   // Full cycle length
+#define FACE_ANIM_DURATION_MS       5000UL    // ~5s face animation (4s idle + 1s blink)
+#define STATUS_DURATION_MS          15000UL   // CLI status screen
+#define SESSION_DURATION_MS         10000UL   // Session usage (limit) screen
+#define SESSION_RESET_DURATION_MS   10000UL   // Session reset-time screen
+#define WEEKLY_DURATION_MS          10000UL   // Weekly usage (limit) screen
+#define WEEKLY_RESET_DURATION_MS    10000UL   // Weekly reset-time screen
 
 // --------------- Animation Frame Timing ---------------
 #define ANIM_FRAME_DELAY_MS     100       // 10 FPS frame rate

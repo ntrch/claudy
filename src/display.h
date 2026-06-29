@@ -34,11 +34,13 @@ struct UsageData {
 };
 
 // --------------- Display Screens ---------------
-#define SCREEN_STATUS  0
-#define SCREEN_SESSION 1
-#define SCREEN_WEEKLY  2
+#define SCREEN_STATUS        0
+#define SCREEN_SESSION       1
+#define SCREEN_SESSION_RESET 2
+#define SCREEN_WEEKLY        3
+#define SCREEN_WEEKLY_RESET  4
 #undef  SCREEN_COUNT
-#define SCREEN_COUNT   3
+#define SCREEN_COUNT         5
 
 // --------------- Typing Animation State ---------------
 struct TypingState {
@@ -76,7 +78,9 @@ public:
     void render();
     void renderStatusScreen();
     void renderSessionScreen();
+    void renderSessionResetScreen();
     void renderWeeklyScreen();
+    void renderWeeklyResetScreen();
     void renderErrorScreen();
     void renderNoDataScreen();
 
