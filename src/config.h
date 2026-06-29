@@ -52,7 +52,7 @@
 #define ANTHROPIC_MIN_MODEL         "claude-haiku-4-5-20251001"
 
 // --------------- OAuth ---------------
-#define OAUTH_REFRESH_URL           "https://console.anthropic.com/api/oauth/token"
+#define OAUTH_REFRESH_URL           "https://console.anthropic.com/v1/oauth/token"
 #define PREF_KEY_OAUTH_CLIENT_ID    "client_id"
 #define PREF_KEY_ACCESS_TOKEN       "access_tkn"
 
