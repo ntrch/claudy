@@ -12,38 +12,26 @@
 
 // --------------- Usage Data Structure ---------------
 struct UsageData {
-    // Session (daily) usage
-    int sessionUsed;
-    int sessionLimit;
-    String sessionUnit;
+    // Session (5-hour) usage
+    int sessionUsed;      // percentage (0-100) for subscribers, count for API key
+    int sessionLimit;     // 100 for subscribers, actual limit for API key
+    String sessionUnit;   // "%" or "req"
 
-    // Weekly usage
+    // Weekly (7-day) usage
     int weeklyUsed;
     int weeklyLimit;
-    String weeklyUnit;
+    String weeklyUnit;    // "%" or "req"
 
-    // Cost
-    float costCurrent;
-    float costLimit;
-    String costCurrency;
+    // Reset times (ISO strings from Anthropic headers)
+    String resetSession;  // e.g. "2024-01-15T00:00:00Z"
+    String resetWeekly;   // e.g. "2024-01-21T00:00:00Z"
 
-    // Reset times (raw ISO string, parsed locally)
-    String resetSession; // e.g. "2024-01-15T00:00:00Z"
-    String resetWeekly;  // e.g. "2024-01-21T00:00:00Z"
-
-    // Backwards-compatible aliases
-    int   dailyUsed;
-    int   dailyLimit;
-    String dailyUnit;
-    String resetDaily;
-
-    // Plan / status
-    String plan;
-    String status;   // "running", "idle", "thinking", etc.
+    // Status
+    String status;        // "running", "idle", "thinking", etc.
 
     // State flags
-    bool valid;      // true if data has been fetched successfully
-    String errorMsg; // non-empty if last fetch failed
+    bool valid;           // true if data has been fetched successfully
+    String errorMsg;      // non-empty if last fetch failed
 };
 
 // --------------- Display Screens ---------------

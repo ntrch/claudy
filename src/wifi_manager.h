@@ -9,6 +9,7 @@
 #include <WiFiManager.h>
 #include <Preferences.h>
 #include "config.h"
+#include "api_client.h"  // for AuthType
 
 class WifiSetupManager {
 public:
@@ -25,8 +26,8 @@ public:
     void maintain();
 
     // Accessors for saved credentials
-    String getApiUrl() const  { return _apiUrl; }
-    String getApiKey() const  { return _apiKey; }
+    AuthType getAuthType() const { return _authType; }
+    String   getToken()    const { return _token; }
 
     // RSSI of current connection
     int getRssi() const;
@@ -37,12 +38,12 @@ public:
 private:
     WiFiManager  _wm;
     Preferences  _prefs;
-    String       _apiUrl;
-    String       _apiKey;
+    AuthType     _authType;
+    String       _token;
 
     bool         _configured;
     uint32_t     _lastReconnectAttempt;
 
     void loadConfig();
-    void saveConfig(const String& apiUrl, const String& apiKey);
+    void saveConfig(const String& authType, const String& token);
 };

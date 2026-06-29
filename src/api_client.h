@@ -1,13 +1,12 @@
 #pragma once
 
 // ============================================================
-// api_client.h — Fetch usage data from API endpoint header
+// api_client.h — Fetch usage data from Anthropic API headers
 // ESP32 Claude Code Companion
 // ============================================================
 
 #include <Arduino.h>
 #include <HTTPClient.h>
-#include <ArduinoJson.h>
 #include "display.h"   // for UsageData struct
 #include "config.h"
 
@@ -17,19 +16,24 @@ enum class ApiResult {
     ERR_NO_WIFI,
     ERR_HTTP_CONNECT,
     ERR_HTTP_STATUS,
-    ERR_JSON_PARSE,
     ERR_TIMEOUT,
+};
+
+// Auth types supported by Anthropic API
+enum class AuthType {
+    OAUTH_TOKEN,  // Pro/Max/Team subscribers: Bearer sk-ant-oat01-...
+    API_KEY,      // API key users: x-api-key sk-ant-api03-...
 };
 
 class ApiClient {
 public:
     ApiClient();
 
-    // Configure endpoint
-    void setEndpoint(const String& url, const String& apiKey);
+    // Configure authentication
+    void setAuth(AuthType type, const String& token);
 
-    // Fetch usage data; fills outData on success
-    // Returns ApiResult::OK on success
+    // Fetch usage data via Anthropic API rate-limit headers
+    // Fills outData on success
     ApiResult fetchUsage(UsageData& outData);
 
     // Human-readable error string for the last failed fetch
@@ -40,13 +44,10 @@ public:
     bool fetchWithRetry(UsageData& outData, int maxRetries = API_RETRY_MAX);
 
 private:
-    String  _apiUrl;
-    String  _apiKey;
-    String  _lastError;
+    AuthType _authType;
+    String   _authToken;
+    String   _lastError;
 
-    // Parse JSON body into UsageData
-    ApiResult parseResponse(const String& body, UsageData& outData);
-
-    // HTTP GET helper; returns HTTP status code, body via out param
-    int httpGet(const String& url, String& responseBody);
+    // Parse response headers into UsageData
+    ApiResult parseHeaders(HTTPClient& http, UsageData& outData);
 };

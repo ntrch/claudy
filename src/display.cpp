@@ -32,17 +32,9 @@ DisplayManager::DisplayManager()
     _data.sessionLimit   = 0;
     _data.weeklyUsed     = 0;
     _data.weeklyLimit    = 0;
-    _data.costCurrent    = 0.0f;
-    _data.costLimit      = 0.0f;
-    _data.plan           = "---";
     _data.status         = "idle";
     _data.sessionUnit    = "req";
     _data.weeklyUnit     = "req";
-    _data.costCurrency   = "USD";
-    // legacy aliases
-    _data.dailyUsed      = 0;
-    _data.dailyLimit     = 0;
-    _data.dailyUnit      = "req";
 
     initTyping();
 }
@@ -176,16 +168,16 @@ void DisplayManager::renderSessionScreen() {
     drawWifiIcon(116, 1, _wifiConnected, _wifiRssi);
     _display.drawFastHLine(0, 10, OLED_SCREEN_WIDTH, SSD1306_WHITE);
 
-    // Usage numbers: "150 / 500 requests"
-    int used  = _data.sessionUsed  > 0 ? _data.sessionUsed  : _data.dailyUsed;
-    int limit = _data.sessionLimit > 0 ? _data.sessionLimit : _data.dailyLimit;
+    // Usage numbers: e.g. "45 / 100 %" or "150 / 500 req"
     _display.setCursor(0, 13);
     char usageBuf[32];
-    snprintf(usageBuf, sizeof(usageBuf), "%d / %d requests", used, limit);
+    snprintf(usageBuf, sizeof(usageBuf), "%d / %d %s",
+             _data.sessionUsed, _data.sessionLimit,
+             _data.sessionUnit.c_str());
     _display.print(usageBuf);
 
     // Big progress bar (full width minus percentage label)
-    float pct = safePercent(used, limit);
+    float pct = safePercent(_data.sessionUsed, _data.sessionLimit);
     drawProgressBar(0, 24, PROGRESS_BAR_WIDTH, 8, pct);
 
     // Percentage right of bar
@@ -196,9 +188,8 @@ void DisplayManager::renderSessionScreen() {
 
     // Reset time
     _display.setCursor(0, 38);
-    String resetStr = _data.resetSession.length() > 0 ? _data.resetSession : _data.resetDaily;
     _display.print("Resets: ");
-    _display.print(formatTimeUntil(resetStr));
+    _display.print(formatTimeUntil(_data.resetSession));
 }
 
 // ============================================================
@@ -215,8 +206,9 @@ void DisplayManager::renderWeeklyScreen() {
     // Usage numbers
     _display.setCursor(0, 13);
     char usageBuf[32];
-    snprintf(usageBuf, sizeof(usageBuf), "%d / %d requests",
-             _data.weeklyUsed, _data.weeklyLimit);
+    snprintf(usageBuf, sizeof(usageBuf), "%d / %d %s",
+             _data.weeklyUsed, _data.weeklyLimit,
+             _data.weeklyUnit.c_str());
     _display.print(usageBuf);
 
     // Progress bar
@@ -231,7 +223,7 @@ void DisplayManager::renderWeeklyScreen() {
     // Weekly reset
     _display.setCursor(0, 38);
     _display.print("Resets: ");
-    // Parse ISO date to "Mon 00:00" style
+    // Parse ISO date to "MM-DD HH:MM" style
     String wr = _data.resetWeekly;
     if (wr.length() >= 16) {
         String datePart = wr.substring(5, 10);   // "MM-DD"

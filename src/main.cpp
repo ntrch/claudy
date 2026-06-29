@@ -129,7 +129,7 @@ void setup() {
     }
 
     // Configure API client
-    apiClient.setEndpoint(wifiMgr.getApiUrl(), wifiMgr.getApiKey());
+    apiClient.setAuth(wifiMgr.getAuthType(), wifiMgr.getToken());
 
     // Update WiFi status in display
     bool connected = wifiMgr.isConnected();

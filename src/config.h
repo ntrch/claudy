@@ -43,12 +43,13 @@
 #define WIFI_AP_NAME                "Claudy-Setup"
 #define WIFI_AP_PASSWORD            ""        // Open AP (no password)
 #define PREF_NAMESPACE              "claudy"
-#define PREF_KEY_API_URL            "api_url"
-#define PREF_KEY_API_KEY            "api_key"
+#define PREF_KEY_AUTH_TYPE          "auth_type"
+#define PREF_KEY_TOKEN              "token"
 
-// --------------- Default API ---------------
-#define DEFAULT_API_URL             "https://api.example.com/usage"
-#define DEFAULT_API_KEY             ""
+// --------------- Anthropic API ---------------
+#define ANTHROPIC_API_URL           "https://api.anthropic.com/v1/messages"
+#define ANTHROPIC_API_VERSION       "2023-06-01"
+#define ANTHROPIC_MIN_MODEL         "claude-haiku-4-5-20251001"
 
 // --------------- Progress Bar ---------------
 #define PROGRESS_BAR_WIDTH          108  // pixels
