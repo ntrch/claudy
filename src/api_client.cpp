@@ -83,11 +83,11 @@ bool ApiClient::refreshOAuthToken() {
         return false;
     }
 
-    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    http.addHeader("Content-Type", "application/json");
 
-    String body = "grant_type=refresh_token"
-                  "&refresh_token=" + _refreshToken +
-                  "&client_id=" + _clientId;
+    String body = "{\"grant_type\":\"refresh_token\","
+                  "\"refresh_token\":\"" + _refreshToken + "\","
+                  "\"client_id\":\"" + _clientId + "\"}";
 
     int code = http.POST(body);
     bool ok = false;
