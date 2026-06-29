@@ -56,6 +56,20 @@ void setup() {
     // Wake button (GPIO0) as input
     pinMode(WAKE_BUTTON_PIN, INPUT_PULLUP);
 
+    // Hold BOOT button during startup = factory reset (clear WiFi + config)
+    delay(100);
+    if (digitalRead(WAKE_BUTTON_PIN) == LOW) {
+        Serial.println("[Main] BOOT button held — factory reset!");
+        // Show reset message on display first
+        display.begin();
+        display.getU8g2().clearBuffer();
+        display.getU8g2().setFont(u8g2_font_6x10_tr);
+        display.getU8g2().drawStr(10, 30, "Factory Reset...");
+        display.getU8g2().sendBuffer();
+        wifiMgr.resetConfig(); // clears NVS + WiFi, restarts ESP
+        // resetConfig calls ESP.restart(), won't reach here
+    }
+
     // Init display
     if (!display.begin()) {
         Serial.println("[Main] Display init FAILED — halting");
