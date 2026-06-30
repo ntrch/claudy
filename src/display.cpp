@@ -5,16 +5,18 @@
 
 #include "display.h"
 #include <Wire.h>
+#include <time.h>
 
 // --------------- Demo messages for CLI typing effect ---------------
+// Kept short so "> /<msg>_" fits inside the framed box (~20 chars wide).
 static const char* const kTypingMessages[] = {
-    "coding auth flow",
-    "debugging api client",
+    "coding",
+    "debugging",
     "writing tests",
-    "reviewing PR #42",
-    "refactoring queries",
-    "updating docs",
-    "deploying staging",
+    "reviewing",
+    "refactoring",
+    "reading files",
+    "thinking",
 };
 static const uint8_t kTypingMessageCount = 7;
 
@@ -154,6 +156,10 @@ void DisplayManager::renderStatusScreen() {
 
     String line = "> /" + typedText;
     if (showCursor) line += "_";
+
+    // Clip to the box: font is 6px wide, usable width ~120px => 20 chars max.
+    const uint16_t kMaxChars = 20;
+    if (line.length() > kMaxChars) line = line.substring(0, kMaxChars);
     _u8g2.drawStr(4, boxY + 14, line.c_str());
 }
 
@@ -342,13 +348,36 @@ void DisplayManager::drawWifiIcon(int x, int y, bool connected, int rssi) {
     }
 }
 
-String DisplayManager::formatTimeUntil(const String& isoTimestamp) {
-    if (isoTimestamp.length() < 16) {
-        return "--:-- UTC";
+String DisplayManager::formatTimeUntil(const String& resetVal) {
+    String v = resetVal;
+    v.trim();
+    if (v.length() == 0) return "bilinmiyor";
+
+    // Reset headers arrive as Unix epoch seconds (e.g. "1751299200").
+    bool numeric = true;
+    for (uint16_t i = 0; i < v.length(); i++) {
+        if (v[i] < '0' || v[i] > '9') { numeric = false; break; }
     }
-    String date = isoTimestamp.substring(5, 10);   // MM-DD
-    String time = isoTimestamp.substring(11, 16);  // HH:MM
-    return date + " " + time + "Z";
+
+    if (numeric) {
+        time_t epoch = (time_t)strtoul(v.c_str(), nullptr, 10);
+        epoch += TZ_OFFSET_SECONDS;          // shift UTC epoch to local wall clock
+        struct tm* lt = gmtime(&epoch);       // gmtime on shifted epoch = local time
+        if (lt) {
+            char buf[24];
+            strftime(buf, sizeof(buf), "%m-%d %H:%M", lt);  // e.g. "06-30 18:00"
+            return String(buf);
+        }
+        return "bilinmiyor";
+    }
+
+    // Fallback: ISO 8601 string "2025-06-30T18:00:00Z"
+    if (v.length() >= 16) {
+        String date = v.substring(5, 10);     // MM-DD
+        String time = v.substring(11, 16);    // HH:MM
+        return date + " " + time;
+    }
+    return "bilinmiyor";
 }
 
 float DisplayManager::safePercent(int used, int limit) {

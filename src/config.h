@@ -57,6 +57,10 @@
 // OAuth (subscription) access tokens require this beta header to be accepted.
 #define ANTHROPIC_OAUTH_BETA        "oauth-2025-04-20"
 
+// Reset-time headers are Unix epoch (seconds, UTC). Shift to local wall clock
+// for display. Turkey = UTC+3 (no DST). Change this if you're elsewhere.
+#define TZ_OFFSET_SECONDS           (3 * 3600)
+
 // --------------- OAuth ---------------
 #define OAUTH_REFRESH_URL           "https://console.anthropic.com/v1/oauth/token"
 // Public Claude Code OAuth client_id — same for every install, not a secret.

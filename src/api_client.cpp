@@ -246,6 +246,9 @@ ApiResult ApiClient::parseHeaders(HTTPClient& http, UsageData& outData) {
     String s7d      = http.header("anthropic-ratelimit-unified-7d-utilization");
     String s7dReset = http.header("anthropic-ratelimit-unified-7d-reset");
 
+    Serial.print("[API]   raw 5h-reset: '"); Serial.print(s5hReset); Serial.println("'");
+    Serial.print("[API]   raw 7d-reset: '"); Serial.print(s7dReset); Serial.println("'");
+
     if (s5h.length() > 0) {
         // Subscriber mode — values are fractions (e.g., "0.45" = 45%)
         float pct5h = s5h.toFloat();
